@@ -6,6 +6,9 @@ touch media/error.wav
 
 tar xzf test_media.tgz
 
+# PRX-added fixtures for cart chunk and MPEG/MP2 audio tests.
+tar xzf test_media_cart.tgz
+
 # create a silent bext wave file with fixture metadata and a time refernce starting at
 # one minute
 #
