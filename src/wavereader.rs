@@ -12,10 +12,11 @@ use super::chunks::ReadBWaveChunks;
 use super::cue::Cue;
 use super::errors::Error as ParserError;
 use super::errors::Error;
+use super::fact::Fact;
 use super::fmt::{ChannelDescriptor, ChannelMask, WaveFmt};
 use super::fourcc::{
-    FourCC, ReadFourCC, ADTL_SIG, AXML_SIG, BEXT_SIG, CUE__SIG, DATA_SIG, FLLR_SIG, FMT__SIG,
-    IXML_SIG, JUNK_SIG, LIST_SIG,
+    FourCC, ReadFourCC, ADTL_SIG, AXML_SIG, BEXT_SIG, CUE__SIG, DATA_SIG, FACT_SIG, FLLR_SIG,
+    FMT__SIG, IXML_SIG, JUNK_SIG, LIST_SIG,
 };
 use super::parser::Parser;
 use super::{CommonFormat, Sample, I24};
@@ -312,6 +313,20 @@ impl<R: Read + Seek> WaveReader<R> {
         if result > 0 {
             let mut bext_cursor = Cursor::new(bext_buff);
             Ok(Some(bext_cursor.read_bext()?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// The `fact` chunk for this file, if present.
+    ///
+    /// Required for non-PCM data per EBU Tech 3285 Supplement 1.
+    pub fn fact(&mut self) -> Result<Option<Fact>, ParserError> {
+        let mut buf: Vec<u8> = vec![];
+        let result = self.read_chunk(FACT_SIG, 0, &mut buf)?;
+        if result > 0 {
+            let mut cursor = Cursor::new(buf);
+            Ok(Some(cursor.read_fact()?))
         } else {
             Ok(None)
         }

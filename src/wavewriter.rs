@@ -6,13 +6,14 @@ use crate::CommonFormat;
 
 use super::fmt::WaveFmt;
 use super::fourcc::{
-    FourCC, WriteFourCC, AXML_SIG, BEXT_SIG, DATA_SIG, DS64_SIG, ELM1_SIG, FMT__SIG, IXML_SIG,
-    JUNK_SIG, RF64_SIG, RIFF_SIG, WAVE_SIG,
+    FourCC, WriteFourCC, AXML_SIG, BEXT_SIG, DATA_SIG, DS64_SIG, ELM1_SIG, FACT_SIG, FMT__SIG,
+    IXML_SIG, JUNK_SIG, RF64_SIG, RIFF_SIG, WAVE_SIG,
 };
 use super::{Error, Sample, I24};
 //use super::common_format::CommonFormat;
 use super::bext::Bext;
 use super::chunks::WriteBWaveChunks;
+use super::fact::Fact;
 
 use byteorder::LittleEndian;
 use byteorder::WriteBytesExt;
@@ -359,6 +360,17 @@ where
         c.write_bext(bext)?;
         let buf = c.into_inner();
         self.write_chunk(BEXT_SIG, &buf)?;
+        Ok(())
+    }
+
+    /// Write a `fact` chunk to the file.
+    ///
+    /// Required for non-PCM data per EBU Tech 3285 Supplement 1.
+    pub fn write_fact(&mut self, fact: &Fact) -> Result<(), Error> {
+        let mut c = Cursor::new(vec![0u8; 0]);
+        c.write_fact(fact)?;
+        let buf = c.into_inner();
+        self.write_chunk(FACT_SIG, &buf)?;
         Ok(())
     }
 

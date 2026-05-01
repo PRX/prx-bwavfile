@@ -41,6 +41,7 @@ mod parser;
 mod bext;
 mod chunks;
 mod cue;
+mod fact;
 mod fmt;
 
 mod sample;
@@ -49,6 +50,7 @@ mod wavereader;
 mod wavewriter;
 
 pub use bext::Bext;
+pub use fact::Fact;
 pub use common_format::{
     CommonFormat, WAVE_TAG_EXTENDED, WAVE_TAG_FLOAT, WAVE_TAG_MPEG, WAVE_TAG_PCM,
     WAVE_UUID_BFORMAT_FLOAT, WAVE_UUID_BFORMAT_PCM, WAVE_UUID_FLOAT, WAVE_UUID_MPEG, WAVE_UUID_PCM,
