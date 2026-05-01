@@ -1,7 +1,12 @@
 /*!
-# bwavfile
+# prx-bwavfile
 
-Rust Wave File Reader/Writer with Broadcast-WAV, MBWF and RF64 Support
+Rust Wave File Reader/Writer with Broadcast-WAV, MBWF, RF64, and broadcast-automation
+metadata support, including MPEG/MP2 audio, the EBU `mext` chunk, and the AES46 `cart`
+chunk.
+
+Fork of [bwavfile][upstream] by Jamie Hardt and Ian Hobson, extended by PRX with
+additional chunk and codec support for broadcast distribution workflows.
 
 Refer to the individual modules for relevant documentation. For opening
 and writing files begin with [WaveReader] and [WaveWriter] respectively.
@@ -19,7 +24,7 @@ Apps we test against:
 - Audacity
 - Sound Devices field recorders: 702T, MixPre-10 II
 
-[github]: https://github.com/iluvcapra/bwavfile
+[upstream]: https://github.com/iluvcapra/bwavfile
 */
 
 extern crate byteorder;

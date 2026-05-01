@@ -1,15 +1,22 @@
 [package]
-name = "bwavfile"
-version = "2.0.1"
-authors = ["Jamie Hardt <jamiehardt@me.com>", "Ian Hobson <ian.r.hobson@gmail.com>"]
+name = "prx-bwavfile"
+version = "0.1.0"
+authors = [
+    "Jamie Hardt <jamiehardt@me.com>",
+    "Ian Hobson <ian.r.hobson@gmail.com>",
+    "Andrew Kuklewicz <andrew@prx.org>",
+]
 edition = "2018"
 license = "MIT"
-description = "Rust Wave File Reader/Writer with Broadcast-WAV, MBWF and RF64 Support"
-homepage = "https://github.com/iluvcapra/bwavfile"
+description = "Rust Broadcast-WAVE reader/writer with MP2/MPEG audio, EBU mext, AES46 cart chunk, and RF64 support. Fork of bwavfile."
+homepage = "https://github.com/PRX/prx-bwavfile"
+repository = "https://github.com/PRX/prx-bwavfile"
 readme = "README.md"
 categories = ["multimedia::audio", "parsing"]
-keywords = ["audio", "broadcast", "multimedia","smpte"]
+keywords = ["audio", "broadcast", "bwf", "mpeg", "cart"]
 
+[lib]
+name = "bwavfile"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

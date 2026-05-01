@@ -1,15 +1,32 @@
-[![Crates.io](https://img.shields.io/crates/l/bwavfile)](LICENSE)
-[![Crates.io](https://img.shields.io/crates/v/bwavfile)](https://crates.io/crates/bwavfile/)
-![GitHub last commit](https://img.shields.io/github/last-commit/iluvcapra/bwavfile)
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/iluvcapra/bwavfile/rust.yml?branch=master)](https://github.com/iluvcapra/bwavfile/actions?query=workflow%3ARust)
+# prx-bwavfile
 
-# bwavfile
-Wave File Reader/Writer library in Rust, with Broadcast-WAV, RF64 and production metadata support
+Wave File Reader/Writer library in Rust, with Broadcast-WAV, RF64, and broadcast-automation
+metadata support — including MPEG/MP2 audio in the `data` chunk, the EBU `mext` chunk, and
+the AES46 `cart` chunk.
+
+## Upstream credit
+
+`prx-bwavfile` is a fork of [iluvcapra/bwavfile](https://github.com/iluvcapra/bwavfile)
+by Jamie Hardt and Ian Hobson, extended by PRX with the additional chunk and codec
+support listed under "PRX additions" below. Where possible, fixes and general improvements
+are contributed back upstream; PRX-specific features (MP2 audio, `mext`, `cart`) live in
+this fork. Original commit history is preserved on the `main` branch.
+
+## PRX additions (in progress)
+
+These features are under development and not yet shipped:
+
+  * MP2/MPEG audio data in the `data` chunk (extracted metadata, not encode/decode).
+  * Extended `fmt` chunk for MPEG (`MPEG1WAVEFORMAT`).
+  * EBU `mext` chunk (Tech 3285 Supplement 1).
+  * AES46-2002 `cart` chunk for broadcast automation.
+  * `fact` chunk for non-PCM data.
+  * `from_mpeg()` constructor that wraps an MP2 file with all required BWF chunks.
 
 
 ## Features
 
-__bwavfile__ provides a reader `WaveReader` and writer type `WaveWriter` for 
+__prx-bwavfile__ provides a reader `WaveReader` and writer type `WaveWriter` for
 reading and creating new wave audio files.
 
 `WaveReader` and `WaveWriter` support:
