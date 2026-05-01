@@ -16,6 +16,8 @@ jobs:
     - uses: actions/checkout@v2
 #     - name: Install ffmpeg
 #       run: sudo apt-get install ffmpeg
+    - name: rustfmt-check
+      run: cargo fmt --check
     - name: clippy-check
       # You may pin to the exact commit or the version.
       # uses: LoliGothick/clippy-check@9cd01de4387f9c644b6489355bcff686da6a00f2
