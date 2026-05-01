@@ -75,7 +75,10 @@ mod tests {
 
         cursor.seek(SeekFrom::Start(0)).unwrap();
         let mut reader = WaveReader::new(cursor).unwrap();
-        let parsed = reader.fact().unwrap().expect("fact chunk should be present");
+        let parsed = reader
+            .fact()
+            .unwrap()
+            .expect("fact chunk should be present");
         assert_eq!(parsed.sample_length, 12345);
     }
 
@@ -90,7 +93,10 @@ mod tests {
     fn read_60315_wav_has_fact() {
         // 60315.wav is a real broadcast WAV with MP2 audio; fact is mandatory.
         let mut reader = WaveReader::open("tests/media/60315.wav").unwrap();
-        let fact = reader.fact().unwrap().expect("60315.wav must have a fact chunk");
+        let fact = reader
+            .fact()
+            .unwrap()
+            .expect("60315.wav must have a fact chunk");
         assert!(fact.sample_length > 0);
     }
 }
