@@ -256,9 +256,16 @@ impl<R: Read + Seek> Parser<R> {
                 content_length: this_size,
             };
 
+            // Saturating sub: real-world encoders sometimes omit the
+            // RIFF pad byte on the final odd-length chunk of a file
+            // (common with MPEG/MP2 `data` chunks). Without saturation,
+            // `remaining - 8 - this_displacement` underflows for the
+            // last chunk and wraps to ~u64::MAX, causing the next
+            // iteration to try reading past end-of-file. Saturating to
+            // 0 makes the next iteration emit FinishParse cleanly.
             state = State::ReadyForChunk {
                 at: at + 8 + this_displacement,
-                remaining: remaining - 8 - this_displacement,
+                remaining: remaining.saturating_sub(8 + this_displacement),
             }
         }
 
