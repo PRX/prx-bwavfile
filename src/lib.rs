@@ -36,7 +36,7 @@ mod errors;
 mod fourcc;
 
 mod list_form;
-mod parser;
+pub mod parser;
 
 mod bext;
 mod cart;
@@ -70,6 +70,7 @@ pub use fourcc::FourCC;
 pub use mext::Mext;
 pub use mpeg::{ChannelMode, MpegInfo, MpegLayer, MpegVersion};
 pub use mpeg_bwf::BroadcastMpegFile;
+pub use parser::{ChunkIteratorItem, Parser};
 pub use sample::{Sample, I24};
 pub use wavereader::{AudioFrameReader, WaveReader};
 pub use wavewriter::{AudioFrameWriter, WaveWriter};

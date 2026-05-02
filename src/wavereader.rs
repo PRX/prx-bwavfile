@@ -368,6 +368,16 @@ impl<R: Read + Seek> WaveReader<R> {
         }
     }
 
+    /// Read the raw bytes of the `data` chunk into `buffer`.
+    ///
+    /// For PCM files these are raw sample bytes. For codec-encoded data
+    /// (MPEG, ADPCM, etc.) these are the codec bytes — decoding requires
+    /// a separate codec implementation. Returns the number of bytes read,
+    /// or `0` if the file has no `data` chunk.
+    pub fn read_data_chunk(&mut self, buffer: &mut Vec<u8>) -> Result<usize, ParserError> {
+        self.read_chunk(DATA_SIG, 0, buffer)
+    }
+
     /// Describe the channels in this file
     ///
     /// Returns a vector of channel descriptors, one for each channel

@@ -3,3 +3,7 @@
 target/*
 tests/media/*
 tests/.DS_Store
+
+# Local-only verification scaffolding (not checked in)
+examples/bwf_diff.rs
+PLAN.md
