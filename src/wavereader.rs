@@ -16,8 +16,9 @@ use super::fact::Fact;
 use super::fmt::{ChannelDescriptor, ChannelMask, WaveFmt};
 use super::fourcc::{
     FourCC, ReadFourCC, ADTL_SIG, AXML_SIG, BEXT_SIG, CUE__SIG, DATA_SIG, FACT_SIG, FLLR_SIG,
-    FMT__SIG, IXML_SIG, JUNK_SIG, LIST_SIG,
+    FMT__SIG, IXML_SIG, JUNK_SIG, LIST_SIG, MEXT_SIG,
 };
+use super::mext::Mext;
 use super::parser::Parser;
 use super::{CommonFormat, Sample, I24};
 
@@ -327,6 +328,21 @@ impl<R: Read + Seek> WaveReader<R> {
         if result > 0 {
             let mut cursor = Cursor::new(buf);
             Ok(Some(cursor.read_fact()?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// The `mext` (MPEG audio extension) chunk for this file, if present.
+    ///
+    /// Required alongside the MPEG-extended `fmt` chunk for files
+    /// containing MPEG audio per EBU Tech 3285 Supplement 1.
+    pub fn mext(&mut self) -> Result<Option<Mext>, ParserError> {
+        let mut buf: Vec<u8> = vec![];
+        let result = self.read_chunk(MEXT_SIG, 0, &mut buf)?;
+        if result > 0 {
+            let mut cursor = Cursor::new(buf);
+            Ok(Some(cursor.read_mext()?))
         } else {
             Ok(None)
         }

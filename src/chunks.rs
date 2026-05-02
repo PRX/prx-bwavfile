@@ -13,12 +13,14 @@ use super::bext::Bext;
 use super::errors::Error as ParserError;
 use super::fact::Fact;
 use super::fmt::{WaveFmt, WaveFmtExtended};
+use super::mext::Mext;
 
 pub trait ReadBWaveChunks: Read {
     fn read_bext(&mut self) -> Result<Bext, ParserError>;
     fn read_bext_string_field(&mut self, length: usize) -> Result<String, ParserError>;
     fn read_wave_fmt(&mut self) -> Result<WaveFmt, ParserError>;
     fn read_fact(&mut self) -> Result<Fact, ParserError>;
+    fn read_mext(&mut self) -> Result<Mext, ParserError>;
 }
 
 pub trait WriteBWaveChunks: Write {
@@ -26,6 +28,7 @@ pub trait WriteBWaveChunks: Write {
     fn write_bext_string_field(&mut self, string: &str, length: usize) -> Result<(), ParserError>;
     fn write_bext(&mut self, bext: &Bext) -> Result<(), ParserError>;
     fn write_fact(&mut self, fact: &Fact) -> Result<(), ParserError>;
+    fn write_mext(&mut self, mext: &Mext) -> Result<(), ParserError>;
 }
 
 impl<T> WriteBWaveChunks for T
@@ -100,6 +103,15 @@ where
 
     fn write_fact(&mut self, fact: &Fact) -> Result<(), ParserError> {
         self.write_u32::<LittleEndian>(fact.sample_length)?;
+        Ok(())
+    }
+
+    fn write_mext(&mut self, mext: &Mext) -> Result<(), ParserError> {
+        self.write_u16::<LittleEndian>(mext.sound_information)?;
+        self.write_u16::<LittleEndian>(mext.frame_size)?;
+        self.write_u16::<LittleEndian>(mext.ancillary_data_length)?;
+        self.write_u16::<LittleEndian>(mext.ancillary_data_def)?;
+        self.write_all(&mext.reserved)?;
         Ok(())
     }
 }
@@ -227,6 +239,20 @@ where
     fn read_fact(&mut self) -> Result<Fact, ParserError> {
         Ok(Fact {
             sample_length: self.read_u32::<LittleEndian>()?,
+        })
+    }
+
+    fn read_mext(&mut self) -> Result<Mext, ParserError> {
+        Ok(Mext {
+            sound_information: self.read_u16::<LittleEndian>()?,
+            frame_size: self.read_u16::<LittleEndian>()?,
+            ancillary_data_length: self.read_u16::<LittleEndian>()?,
+            ancillary_data_def: self.read_u16::<LittleEndian>()?,
+            reserved: {
+                let mut buf = [0u8; 4];
+                self.read_exact(&mut buf)?;
+                buf
+            },
         })
     }
 }
