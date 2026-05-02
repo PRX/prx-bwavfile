@@ -6,4 +6,7 @@ tests/.DS_Store
 
 # Local-only verification scaffolding (not checked in)
 examples/bwf_diff.rs
+examples/frame_count_audit.rs
+examples/frame_tail_probe.rs
 PLAN.md
+bwf_samples/
