@@ -307,9 +307,37 @@ where
     /// Wrap a writer in a Wave writer.
     ///
     /// The inner writer will immediately have a RIFF WAVE file header
-    /// written to it along with the format descriptor (and possibly a `fact`
-    /// chunk if appropriate).
-    pub fn new(mut inner: W, format: WaveFmt) -> Result<Self, Error> {
+    /// written to it along with a 96-byte `JUNK` chunk reserving space
+    /// for in-place upgrade to RF64 if data later exceeds 4 GiB,
+    /// followed by the `fmt` chunk.
+    ///
+    /// For files guaranteed to stay under 4 GiB and that don't need
+    /// the RF64 promotion path, see
+    /// [`new_without_ds64_reservation`](Self::new_without_ds64_reservation)
+    /// — it omits the JUNK chunk for a more compact output.
+    pub fn new(inner: W, format: WaveFmt) -> Result<Self, Error> {
+        Self::new_with_options(inner, format, true)
+    }
+
+    /// Wrap a writer in a Wave writer **without** reserving space for
+    /// a future RF64 upgrade.
+    ///
+    /// Equivalent to [`new`](Self::new) except the 96-byte `JUNK`
+    /// `ds64` reservation is omitted. The output is more compact and
+    /// matches the byte layout produced by encoders that don't expect
+    /// to need RF64 (e.g. broadcast distribution files using codec
+    /// data, where the data chunk is well under the 4 GiB threshold).
+    ///
+    /// The resulting writer **cannot** be safely upgraded to RF64
+    /// in-place — if more than 4 GiB of total form length would be
+    /// written, the `RIFF` size field overflows and the writer's
+    /// behavior is unspecified. Use the regular [`new`](Self::new)
+    /// for any file whose final size is unknown.
+    pub fn new_without_ds64_reservation(inner: W, format: WaveFmt) -> Result<Self, Error> {
+        Self::new_with_options(inner, format, false)
+    }
+
+    fn new_with_options(mut inner: W, format: WaveFmt, reserve_ds64: bool) -> Result<Self, Error> {
         inner.write_fourcc(RIFF_SIG)?;
         inner.write_u32::<LittleEndian>(0)?;
         inner.write_fourcc(WAVE_SIG)?;
@@ -323,8 +351,9 @@ where
 
         retval.increment_form_length(4)?;
 
-        // write ds64_reservation
-        retval.write_junk(DS64_RESERVATION_LENGTH)?;
+        if reserve_ds64 {
+            retval.write_junk(DS64_RESERVATION_LENGTH)?;
+        }
 
         let mut chunk = retval.chunk(FMT__SIG)?;
         chunk.write_wave_fmt(&format)?;
@@ -461,6 +490,28 @@ fn test_new() {
     assert_eq!(cursor.read_fourcc().unwrap(), FMT__SIG);
     let fmt_size = cursor.read_u32::<LittleEndian>().unwrap();
     assert_eq!(form_size, 4 + 8 + junk_size + 8 + fmt_size);
+}
+
+#[test]
+fn test_new_without_ds64_reservation() {
+    use super::fourcc::ReadFourCC;
+    use byteorder::ReadBytesExt;
+    use std::io::Cursor;
+
+    let mut cursor = Cursor::new(vec![0u8; 0]);
+    let format = WaveFmt::new_pcm_mono(48000, 24);
+    WaveWriter::new_without_ds64_reservation(&mut cursor, format).unwrap();
+
+    cursor.seek(SeekFrom::Start(0)).unwrap();
+    assert_eq!(cursor.read_fourcc().unwrap(), RIFF_SIG);
+    let form_size = cursor.read_u32::<LittleEndian>().unwrap();
+    assert_eq!(cursor.read_fourcc().unwrap(), WAVE_SIG);
+
+    // The next chunk must be `fmt `, not `JUNK` — we skipped the
+    // ds64 reservation.
+    assert_eq!(cursor.read_fourcc().unwrap(), FMT__SIG);
+    let fmt_size = cursor.read_u32::<LittleEndian>().unwrap();
+    assert_eq!(form_size, 4 + 8 + fmt_size);
 }
 
 #[test]

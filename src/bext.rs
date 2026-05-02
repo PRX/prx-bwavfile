@@ -19,7 +19,7 @@ pub type Decibels = f32;
 /// - [EBU Tech R099](https://tech.ebu.ch/docs/r/r099.pdf) (October 2011) "‘Unique’ Source Identifier (USID) for use in the
 ///   &lt;OriginatorReference&gt; field of the Broadcast Wave Format"
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Bext {
     /// 0..256 ASCII character field with free text.
     pub description: String,
