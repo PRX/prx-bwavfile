@@ -135,6 +135,57 @@ pub struct WaveFmtExtended {
     pub type_guid: Uuid,
 }
 
+/// MPEG-1 Wave Format extension (`MPEG1WAVEFORMAT`).
+///
+/// Present in WAVE files whose [`WaveFmt::tag`] is `0x0050` (MPEG-1
+/// audio, including MPEG-1 Layer II / MP2), as defined by EBU Tech 3285
+/// Supplement 1. Carries MPEG-specific framing information that the
+/// standard `fmt` chunk cannot express.
+///
+/// Mutually exclusive with [`WaveFmtExtended`]: only one of
+/// [`WaveFmt::extended_format`] and [`WaveFmt::mpeg1_format`] is ever
+/// `Some` for a given file. The `tag` field selects which.
+///
+/// All fields are little-endian, despite the MPEG bitstream itself
+/// being big-endian — the WAVE container places this struct in RIFF
+/// byte order.
+///
+/// ## Resources
+/// - [EBU Tech 3285 Supplement 1](https://tech.ebu.ch/docs/tech/tech3285s1.pdf), §2.1
+/// - [MPEG1WAVEFORMAT](https://learn.microsoft.com/en-us/previous-versions/dd757717(v=vs.85))
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct WaveFmtMpeg1 {
+    /// MPEG audio layer flag (`ACM_MPEG_LAYER1`=1, `LAYER2`=2, `LAYER3`=4).
+    pub head_layer: u16,
+
+    /// Average bit rate in **bits per second** (not kbps).
+    pub head_bit_rate: u32,
+
+    /// Channel mode flag (`ACM_MPEG_STEREO`=1, `JOINTSTEREO`=2,
+    /// `DUALCHANNEL`=4, `SINGLECHANNEL`=8).
+    pub head_mode: u16,
+
+    /// Mode extension (only meaningful when `head_mode` indicates
+    /// joint stereo).
+    pub head_mode_ext: u16,
+
+    /// Audio emphasis flag (per ACM, 1-indexed: 1=none, 2=50/15µs,
+    /// 3=reserved, 4=CCIT J.17).
+    pub head_emphasis: u16,
+
+    /// Bitfield of per-frame flags (CRC, copyright, original,
+    /// padding, etc.).
+    pub head_flags: u16,
+
+    /// Low 32 bits of the presentation time stamp (PTS), in 90 kHz
+    /// units.
+    pub pts_low: u32,
+
+    /// High 32 bits of the presentation time stamp (PTS), in 90 kHz
+    /// units.
+    pub pts_high: u32,
+}
+
 ///
 /// WAV file data format record.
 ///
@@ -201,7 +252,18 @@ pub struct WaveFmt {
     ///
     /// Additional format metadata if channel_count is greater than 2,
     /// or if certain codecs are used.
+    ///
+    /// Mutually exclusive with [`mpeg1_format`](Self::mpeg1_format):
+    /// at most one of these is `Some` for a given file. `tag == 0xFFFE`
+    /// selects this variant.
     pub extended_format: Option<WaveFmtExtended>,
+
+    /// MPEG-1 audio format extension (`MPEG1WAVEFORMAT`).
+    ///
+    /// Present when `tag == 0x0050` (MPEG-1 audio, e.g. MP2). Defined
+    /// by EBU Tech 3285 Supplement 1. Mutually exclusive with
+    /// [`extended_format`](Self::extended_format).
+    pub mpeg1_format: Option<WaveFmtMpeg1>,
 }
 
 impl WaveFmt {
@@ -211,6 +273,13 @@ impl WaveFmt {
         } else {
             self.bits_per_sample
         }
+    }
+
+    /// MPEG-1 format extension if this `fmt` chunk describes MPEG-1 audio.
+    ///
+    /// Returns `Some` for files where `tag == 0x0050`, `None` otherwise.
+    pub fn mpeg1_extension(&self) -> Option<&WaveFmtMpeg1> {
+        self.mpeg1_format.as_ref()
     }
 
     /// Create a new integer PCM format for a monoaural audio stream.
@@ -243,6 +312,7 @@ impl WaveFmt {
                 channel_mask: ChannelMask::DirectOut as u32,
                 type_guid: WAVE_UUID_BFORMAT_PCM,
             }),
+            mpeg1_format: None,
         }
     }
 
@@ -296,6 +366,7 @@ impl WaveFmt {
             block_alignment: container_bytes_per_sample * channel_count,
             bits_per_sample: container_bits_per_sample,
             extended_format: extformat,
+            mpeg1_format: None,
         }
     }
 
@@ -443,5 +514,79 @@ where
     }
     fn write_f32_frames(&mut self, _format: WaveFmt, _: &[f32]) -> Result<usize, std::io::Error> {
         todo!()
+    }
+}
+
+#[cfg(test)]
+mod mpeg1_tests {
+    use super::*;
+    use crate::chunks::{ReadBWaveChunks, WriteBWaveChunks};
+    use std::io::{Cursor, Seek, SeekFrom};
+
+    fn sample_mpeg1_fmt() -> WaveFmt {
+        WaveFmt {
+            tag: 0x0050,
+            channel_count: 2,
+            sample_rate: 44100,
+            bytes_per_second: 32000,
+            block_alignment: 836,
+            // EBU 3285-S1 sentinel for MPEG audio: bits_per_sample is
+            // typically 0xFFFF (or 0; both are seen in the wild).
+            bits_per_sample: 0xFFFF,
+            extended_format: None,
+            mpeg1_format: Some(WaveFmtMpeg1 {
+                head_layer: 2, // ACM_MPEG_LAYER2 = 2
+                head_bit_rate: 256_000,
+                head_mode: 1, // ACM_MPEG_STEREO = 1
+                head_mode_ext: 0,
+                head_emphasis: 1, // ACM_MPEG_NONE = 1
+                head_flags: 0,
+                pts_low: 0,
+                pts_high: 0,
+            }),
+        }
+    }
+
+    #[test]
+    fn mpeg1_fmt_round_trip_via_chunks_traits() {
+        let original = sample_mpeg1_fmt();
+        let mut buf = Cursor::new(Vec::<u8>::new());
+        buf.write_wave_fmt(&original).unwrap();
+        // Base 16 + cb_size 2 + 22-byte MPEG-1 extension = 40 bytes
+        assert_eq!(buf.get_ref().len(), 40);
+        buf.seek(SeekFrom::Start(0)).unwrap();
+        let parsed = buf.read_wave_fmt().unwrap();
+
+        assert_eq!(parsed.tag, original.tag);
+        assert_eq!(parsed.channel_count, original.channel_count);
+        assert_eq!(parsed.sample_rate, original.sample_rate);
+        assert_eq!(parsed.bytes_per_second, original.bytes_per_second);
+        assert_eq!(parsed.block_alignment, original.block_alignment);
+        assert_eq!(parsed.bits_per_sample, original.bits_per_sample);
+        assert!(parsed.extended_format.is_none());
+        assert_eq!(parsed.mpeg1_format, original.mpeg1_format);
+    }
+
+    #[test]
+    fn mpeg1_extension_accessor() {
+        let f = sample_mpeg1_fmt();
+        assert!(f.mpeg1_extension().is_some());
+        assert_eq!(f.mpeg1_extension().unwrap().head_layer, 2);
+
+        let pcm = WaveFmt::new_pcm_mono(48000, 24);
+        assert!(pcm.mpeg1_extension().is_none());
+        assert!(pcm.mpeg1_format.is_none());
+    }
+
+    #[test]
+    fn pcm_constructors_set_mpeg1_format_to_none() {
+        assert!(WaveFmt::new_pcm_mono(48000, 24).mpeg1_format.is_none());
+        assert!(WaveFmt::new_pcm_stereo(48000, 16).mpeg1_format.is_none());
+        assert!(WaveFmt::new_pcm_multichannel(48000, 24, 0x3F)
+            .mpeg1_format
+            .is_none());
+        assert!(WaveFmt::new_pcm_ambisonic(48000, 24, 4)
+            .mpeg1_format
+            .is_none());
     }
 }
