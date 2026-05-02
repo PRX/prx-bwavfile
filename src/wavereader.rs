@@ -51,18 +51,21 @@ impl<R: Read + Seek> AudioFrameReader<R> {
     /// and the format tag is readable by this implementation (only
     /// format 0x01 is supported at this time.)
     pub fn new(mut inner: R, format: WaveFmt, start: u64, length: u64) -> Result<Self, Error> {
+        // Reject codec-encoded formats (MPEG, ADPCM, A-Law, etc.) cleanly
+        // before doing the PCM block-alignment check below — those formats
+        // legitimately violate `block_alignment * 8 == bits_per_sample *
+        // channel_count`. Callers that want raw bytes should read the
+        // `data` chunk directly via the chunk traits.
+        let common = format.common_format();
+        if common != CommonFormat::IntegerPCM && common != CommonFormat::IeeeFloatPCM {
+            return Err(Error::UnsupportedAudioFormat { tag: format.tag });
+        }
+
         assert!(
             format.block_alignment * 8 == format.bits_per_sample * format.channel_count,
             "Unable to read audio frames from packed formats: block alignment is {}, should be {}",
             format.block_alignment,
             (format.bits_per_sample / 8) * format.channel_count
-        );
-
-        assert!(
-            format.common_format() == CommonFormat::IntegerPCM
-                || format.common_format() == CommonFormat::IeeeFloatPCM,
-            "Unsupported format tag {:?}",
-            format.tag
         );
 
         inner.seek(Start(start))?;

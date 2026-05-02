@@ -50,6 +50,11 @@ pub enum Error {
 
     /// MPEG audio frame parsing failed.
     MpegParseError(String),
+
+    /// The wave file's audio format is not supported by `AudioFrameReader`
+    /// (e.g. MPEG, ADPCM, A-Law). Use codec-specific tools to decode the
+    /// `data` chunk; this crate exposes the raw bytes via the chunk traits.
+    UnsupportedAudioFormat { tag: u16 },
 }
 
 impl StdError for Error {}

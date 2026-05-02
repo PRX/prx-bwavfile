@@ -1,5 +1,40 @@
 use crate::common_format::{CommonFormat, WAVE_UUID_BFORMAT_PCM, WAVE_UUID_PCM};
+use crate::mpeg::{ChannelMode, MpegInfo, MpegVersion};
 use crate::Sample;
+
+/// `MPEG1WAVEFORMAT.fwHeadModeExt`: bitmask of joint-stereo subbands
+/// in use. `1u16 << info.mode_extension` for joint-stereo files,
+/// `0` otherwise.
+fn head_mode_ext(info: &MpegInfo) -> u16 {
+    if matches!(info.channel_mode, ChannelMode::JointStereo) {
+        1u16 << info.mode_extension
+    } else {
+        0
+    }
+}
+
+/// `MPEG1WAVEFORMAT.fwHeadFlags`: bitmask combining the various
+/// per-frame flags into the format-chunk-level encoding per Microsoft
+/// ACM constants.
+fn head_flags(info: &MpegInfo) -> u16 {
+    let mut flags: u16 = 0;
+    if info.private_bit {
+        flags |= 0x0001; // ACM_MPEG_PRIVATEBIT
+    }
+    if info.copyright {
+        flags |= 0x0002; // ACM_MPEG_COPYRIGHT
+    }
+    if info.original {
+        flags |= 0x0004; // ACM_MPEG_ORIGINALHOME
+    }
+    if info.error_protection {
+        flags |= 0x0008; // ACM_MPEG_PROTECTIONBIT
+    }
+    if matches!(info.version, MpegVersion::V1) {
+        flags |= 0x0010; // ACM_MPEG_ID_MPEG1
+    }
+    flags
+}
 
 use std::io::Cursor;
 use uuid::Uuid;
@@ -274,6 +309,37 @@ impl WaveFmt {
     /// Returns `Some` for files where `tag == 0x0050`, `None` otherwise.
     pub fn mpeg1_extension(&self) -> Option<&WaveFmtMpeg1> {
         self.mpeg1_format.as_ref()
+    }
+
+    /// Build a [`WaveFmt`] for an MPEG-1 audio stream from parsed
+    /// frame info.
+    ///
+    /// Sets `tag = 0x0050`, populates [`mpeg1_format`](Self::mpeg1_format)
+    /// from the provided [`MpegInfo`], and computes `bytes_per_second`
+    /// and `block_alignment` per EBU Tech 3285 Supplement 1. The
+    /// `bits_per_sample` field is set to `0` per the EBU sentinel for
+    /// MPEG audio (some encoders use `0xFFFF` instead; `0` is more
+    /// conventional and broadcast tools accept both).
+    pub fn new_mpeg1(info: &MpegInfo) -> Self {
+        WaveFmt {
+            tag: 0x0050,
+            channel_count: info.num_channels,
+            sample_rate: info.sample_rate,
+            bytes_per_second: info.bit_rate * 1000 / 8,
+            block_alignment: info.frame_size as u16,
+            bits_per_sample: 0,
+            extended_format: None,
+            mpeg1_format: Some(WaveFmtMpeg1 {
+                head_layer: info.layer.head_layer(),
+                head_bit_rate: info.bit_rate * 1000,
+                head_mode: info.channel_mode.head_mode(),
+                head_mode_ext: head_mode_ext(info),
+                head_emphasis: info.emphasis as u16 + 1,
+                head_flags: head_flags(info),
+                pts_low: 0,
+                pts_high: 0,
+            }),
+        }
     }
 
     /// Create a new integer PCM format for a monoaural audio stream.

@@ -17,6 +17,18 @@ pub enum MpegVersion {
     V25,
 }
 
+impl MpegVersion {
+    /// Version label used in the EBU R98-1999 coding history field
+    /// (`A=MPEG<label>L<layer>,...`). Returns `"1"`, `"2"`, or `"2.5"`.
+    pub fn r98_label(&self) -> &'static str {
+        match self {
+            MpegVersion::V1 => "1",
+            MpegVersion::V2 => "2",
+            MpegVersion::V25 => "2.5",
+        }
+    }
+}
+
 /// MPEG audio layer.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum MpegLayer {
@@ -28,6 +40,29 @@ pub enum MpegLayer {
     Layer3,
 }
 
+impl MpegLayer {
+    /// Plain layer number, suitable for the EBU R98-1999 coding history
+    /// `L<n>` field. Returns `1`, `2`, or `3`.
+    pub fn number(&self) -> u8 {
+        match self {
+            MpegLayer::Layer1 => 1,
+            MpegLayer::Layer2 => 2,
+            MpegLayer::Layer3 => 3,
+        }
+    }
+
+    /// Encoding for the WAVE `MPEG1WAVEFORMAT.fwHeadLayer` field, per
+    /// Microsoft ACM constants: `ACM_MPEG_LAYER1=1`,
+    /// `ACM_MPEG_LAYER2=2`, `ACM_MPEG_LAYER3=4`.
+    pub fn head_layer(&self) -> u16 {
+        match self {
+            MpegLayer::Layer1 => 1,
+            MpegLayer::Layer2 => 2,
+            MpegLayer::Layer3 => 4,
+        }
+    }
+}
+
 /// MPEG audio channel mode.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ChannelMode {
@@ -35,6 +70,42 @@ pub enum ChannelMode {
     JointStereo,
     DualMono,
     Mono,
+}
+
+impl ChannelMode {
+    /// Number of audio channels for this mode (1 for `Mono`, 2 for the
+    /// rest).
+    pub fn channel_count(&self) -> u16 {
+        match self {
+            ChannelMode::Mono => 1,
+            _ => 2,
+        }
+    }
+
+    /// Mode label used in the EBU R98-1999 coding history `M=<mode>`
+    /// field. Returns `"stereo"`, `"joint-stereo"`, `"dual-mono"`, or
+    /// `"mono"`.
+    pub fn r98_label(&self) -> &'static str {
+        match self {
+            ChannelMode::Stereo => "stereo",
+            ChannelMode::JointStereo => "joint-stereo",
+            ChannelMode::DualMono => "dual-mono",
+            ChannelMode::Mono => "mono",
+        }
+    }
+
+    /// Encoding for the WAVE `MPEG1WAVEFORMAT.fwHeadMode` field, per
+    /// Microsoft ACM constants: `ACM_MPEG_STEREO=1`,
+    /// `ACM_MPEG_JOINTSTEREO=2`, `ACM_MPEG_DUALCHANNEL=4`,
+    /// `ACM_MPEG_SINGLECHANNEL=8`.
+    pub fn head_mode(&self) -> u16 {
+        match self {
+            ChannelMode::Stereo => 1,
+            ChannelMode::JointStereo => 2,
+            ChannelMode::DualMono => 4,
+            ChannelMode::Mono => 8,
+        }
+    }
 }
 
 /// Parsed MPEG audio frame information, populated from the file's first
@@ -176,11 +247,7 @@ impl MpegInfo {
             }
         };
 
-        let num_channels = if channel_mode == ChannelMode::Mono {
-            1
-        } else {
-            2
-        };
+        let num_channels = channel_mode.channel_count();
 
         let samples_per_frame: u32 = match (version, layer) {
             (_, MpegLayer::Layer1) => 384,

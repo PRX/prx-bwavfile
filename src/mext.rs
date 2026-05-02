@@ -62,6 +62,43 @@ impl Mext {
     /// Bit 3: file uses MPEG free format (no fixed bitrate; frame size
     /// is signaled outside the bitstream).
     pub const SOUND_FREE_FORMAT: u16 = 0x0008;
+
+    /// Build an `Mext` from parsed MPEG frame info.
+    ///
+    /// Sets the `SOUND_HOMOGENEOUS` bit if the input reports stable
+    /// frame size across all frames, the `SOUND_FREE_FORMAT` bit if
+    /// the bitstream uses free format, and the appropriate padding
+    /// bit based on the first frame's padding flag (the
+    /// `PADDING_BIT_USED` bit fires for the 44.1/22.05 kHz family
+    /// where padding is expected). `frame_size` is taken from the
+    /// first frame.
+    pub fn from_mpeg_info(info: &crate::mpeg::MpegInfo) -> Self {
+        let mut sound_information: u16 = 0;
+        if info.homogeneous {
+            sound_information |= Self::SOUND_HOMOGENEOUS;
+        }
+        if !info.padding {
+            sound_information |= Self::SOUND_PADDING_BIT_UNUSED;
+        }
+        // Set the 44.1/22.05 kHz "padding may be used" bit only when
+        // the sample rate is from that family AND the first frame has
+        // padding. This matches the JS reference implementation's
+        // mpegSoundInformation_ semantics.
+        let in_44_or_22_family = info.sample_rate == 44100 || info.sample_rate == 22050;
+        if in_44_or_22_family && info.padding {
+            sound_information |= Self::SOUND_PADDING_BIT_USED;
+        }
+        if info.free_format {
+            sound_information |= Self::SOUND_FREE_FORMAT;
+        }
+        Mext {
+            sound_information,
+            frame_size: info.frame_size as u16,
+            ancillary_data_length: 0,
+            ancillary_data_def: 0,
+            reserved: [0; 4],
+        }
+    }
 }
 
 #[cfg(test)]

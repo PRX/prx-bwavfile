@@ -397,6 +397,19 @@ where
         Ok(())
     }
 
+    /// Write a raw `data` chunk with the given bytes.
+    ///
+    /// Bypasses the `audio_frame_writer()` PCM-frame path (which
+    /// inserts an `elm1` 0x4000-aligned filler before the data chunk —
+    /// correct for PCM, wrong for MPEG/codec data). The bytes are
+    /// written verbatim; RIFF odd-length pad-byte handling is applied
+    /// automatically.
+    ///
+    /// Use this when writing codec-encoded data such as MPEG/MP2.
+    pub fn write_data_raw(&mut self, data: &[u8]) -> Result<(), Error> {
+        self.write_chunk(DATA_SIG, data)
+    }
+
     /// Write iXML metadata
     pub fn write_ixml(&mut self, ixml: &[u8]) -> Result<(), Error> {
         //FIXME Implement re-writing
