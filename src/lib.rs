@@ -36,6 +36,7 @@ mod parser;
 mod bext;
 mod chunks;
 mod cue;
+mod fact;
 mod fmt;
 
 mod sample;
@@ -50,6 +51,7 @@ pub use common_format::{
 };
 pub use cue::Cue;
 pub use errors::Error;
+pub use fact::Fact;
 pub use fmt::{
     ADMAudioID, ChannelDescriptor, ChannelMask, ReadWavAudioData, WaveFmt, WaveFmtExtended,
 };
