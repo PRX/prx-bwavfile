@@ -38,6 +38,7 @@ mod chunks;
 mod cue;
 mod fact;
 mod fmt;
+mod mext;
 
 mod sample;
 
@@ -56,6 +57,7 @@ pub use fmt::{
     ADMAudioID, ChannelDescriptor, ChannelMask, ReadWavAudioData, WaveFmt, WaveFmtExtended,
 };
 pub use fourcc::FourCC;
+pub use mext::Mext;
 pub use parser::{ChunkIteratorItem, Parser};
 pub use sample::{Sample, I24};
 pub use wavereader::{AudioFrameReader, WaveReader};
