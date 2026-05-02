@@ -7,13 +7,14 @@ use crate::CommonFormat;
 use super::fmt::WaveFmt;
 use super::fourcc::{
     FourCC, WriteFourCC, AXML_SIG, BEXT_SIG, DATA_SIG, DS64_SIG, ELM1_SIG, FACT_SIG, FMT__SIG,
-    IXML_SIG, JUNK_SIG, RF64_SIG, RIFF_SIG, WAVE_SIG,
+    IXML_SIG, JUNK_SIG, MEXT_SIG, RF64_SIG, RIFF_SIG, WAVE_SIG,
 };
 use super::{Error, Sample, I24};
 //use super::common_format::CommonFormat;
 use super::bext::Bext;
 use super::chunks::WriteBWaveChunks;
 use super::fact::Fact;
+use super::mext::Mext;
 
 use byteorder::LittleEndian;
 use byteorder::WriteBytesExt;
@@ -371,6 +372,18 @@ where
         c.write_fact(fact)?;
         let buf = c.into_inner();
         self.write_chunk(FACT_SIG, &buf)?;
+        Ok(())
+    }
+
+    /// Write an `mext` (MPEG audio extension) chunk to the file.
+    ///
+    /// Required alongside the MPEG-extended `fmt` chunk for files
+    /// containing MPEG audio per EBU Tech 3285 Supplement 1.
+    pub fn write_mext(&mut self, mext: &Mext) -> Result<(), Error> {
+        let mut c = Cursor::new(vec![0u8; 0]);
+        c.write_mext(mext)?;
+        let buf = c.into_inner();
+        self.write_chunk(MEXT_SIG, &buf)?;
         Ok(())
     }
 

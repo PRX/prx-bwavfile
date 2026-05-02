@@ -43,6 +43,7 @@ mod chunks;
 mod cue;
 mod fact;
 mod fmt;
+mod mext;
 
 mod sample;
 
@@ -60,6 +61,7 @@ pub use fact::Fact;
 pub use fmt::{
     ADMAudioID, ChannelDescriptor, ChannelMask, ReadWavAudioData, WaveFmt, WaveFmtExtended,
 };
+pub use mext::Mext;
 pub use sample::{Sample, I24};
 pub use wavereader::{AudioFrameReader, WaveReader};
 pub use wavewriter::{AudioFrameWriter, WaveWriter};
