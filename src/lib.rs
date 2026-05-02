@@ -55,6 +55,7 @@ pub use errors::Error;
 pub use fact::Fact;
 pub use fmt::{
     ADMAudioID, ChannelDescriptor, ChannelMask, ReadWavAudioData, WaveFmt, WaveFmtExtended,
+    WaveFmtMpeg1,
 };
 pub use fourcc::FourCC;
 pub use mext::Mext;

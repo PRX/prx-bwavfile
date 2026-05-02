@@ -12,7 +12,7 @@ use uuid::Uuid;
 use super::bext::Bext;
 use super::errors::Error as ParserError;
 use super::fact::Fact;
-use super::fmt::{WaveFmt, WaveFmtExtended};
+use super::fmt::{WaveFmt, WaveFmtExtended, WaveFmtMpeg1};
 use super::mext::Mext;
 
 pub trait ReadBWaveChunks: Read {
@@ -36,6 +36,10 @@ where
     T: Write,
 {
     fn write_wave_fmt(&mut self, format: &WaveFmt) -> Result<(), ParserError> {
+        debug_assert!(
+            !(format.extended_format.is_some() && format.mpeg1_format.is_some()),
+            "WaveFmt has both extended_format and mpeg1_format set; these are mutually exclusive"
+        );
         self.write_u16::<LittleEndian>(format.tag)?;
         self.write_u16::<LittleEndian>(format.channel_count)?;
         self.write_u32::<LittleEndian>(format.sample_rate)?;
@@ -49,6 +53,18 @@ where
             self.write_u32::<LittleEndian>(ext.channel_mask)?;
             let uuid = ext.type_guid.as_bytes();
             self.write_all(uuid)?;
+        } else if let Some(mpeg1) = format.mpeg1_format {
+            // MPEG1WAVEFORMAT: cbSize = 22 (8 fields totaling 22 bytes after cbSize).
+            let cb_size = 22u16;
+            self.write_u16::<LittleEndian>(cb_size)?;
+            self.write_u16::<LittleEndian>(mpeg1.head_layer)?;
+            self.write_u32::<LittleEndian>(mpeg1.head_bit_rate)?;
+            self.write_u16::<LittleEndian>(mpeg1.head_mode)?;
+            self.write_u16::<LittleEndian>(mpeg1.head_mode_ext)?;
+            self.write_u16::<LittleEndian>(mpeg1.head_emphasis)?;
+            self.write_u16::<LittleEndian>(mpeg1.head_flags)?;
+            self.write_u32::<LittleEndian>(mpeg1.pts_low)?;
+            self.write_u32::<LittleEndian>(mpeg1.pts_high)?;
         }
         Ok(())
     }
@@ -144,6 +160,25 @@ where
                             self.read_exact(&mut buf)?;
                             Uuid::from_slice(&buf)?
                         },
+                    })
+                } else {
+                    None
+                }
+            },
+            mpeg1_format: {
+                // MPEG-1 audio (incl. MP2). EBU Tech 3285 Supplement 1, §2.1.
+                if tag_value == 0x0050 {
+                    let cb_size = self.read_u16::<LittleEndian>()?;
+                    assert!(cb_size >= 22, "MPEG-1 fmt extension is not correct size");
+                    Some(WaveFmtMpeg1 {
+                        head_layer: self.read_u16::<LittleEndian>()?,
+                        head_bit_rate: self.read_u32::<LittleEndian>()?,
+                        head_mode: self.read_u16::<LittleEndian>()?,
+                        head_mode_ext: self.read_u16::<LittleEndian>()?,
+                        head_emphasis: self.read_u16::<LittleEndian>()?,
+                        head_flags: self.read_u16::<LittleEndian>()?,
+                        pts_low: self.read_u32::<LittleEndian>()?,
+                        pts_high: self.read_u32::<LittleEndian>()?,
                     })
                 } else {
                     None
