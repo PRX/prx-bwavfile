@@ -47,6 +47,12 @@ pub enum Error {
         buffer_size: usize,
         channel_count: u16,
     },
+
+    /// The wave file's audio format is not supported by `AudioFrameReader`
+    /// (e.g. MPEG, ADPCM, A-Law). Use codec-specific tools to decode the
+    /// `data` chunk; this crate exposes the raw bytes via
+    /// [`crate::WaveReader::read_data_chunk`].
+    UnsupportedAudioFormat { tag: u16 },
 }
 
 impl StdError for Error {}

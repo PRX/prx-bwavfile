@@ -48,18 +48,21 @@ impl<R: Read + Seek> AudioFrameReader<R> {
     /// and the format tag is readable by this implementation (only
     /// format 0x01 is supported at this time.)
     pub fn new(mut inner: R, format: WaveFmt, start: u64, length: u64) -> Result<Self, Error> {
+        // Reject codec-encoded formats (MPEG, ADPCM, A-Law, etc.)
+        // cleanly before doing the PCM block-alignment check below.
+        // Those formats legitimately violate `block_alignment * 8 ==
+        // bits_per_sample * channel_count`. Callers that want raw
+        // bytes should use `WaveReader::read_data_chunk` instead.
+        let common = format.common_format();
+        if common != CommonFormat::IntegerPCM && common != CommonFormat::IeeeFloatPCM {
+            return Err(Error::UnsupportedAudioFormat { tag: format.tag });
+        }
+
         assert!(
             format.block_alignment * 8 == format.bits_per_sample * format.channel_count,
             "Unable to read audio frames from packed formats: block alignment is {}, should be {}",
             format.block_alignment,
             (format.bits_per_sample / 8) * format.channel_count
-        );
-
-        assert!(
-            format.common_format() == CommonFormat::IntegerPCM
-                || format.common_format() == CommonFormat::IeeeFloatPCM,
-            "Unsupported format tag {:?}",
-            format.tag
         );
 
         inner.seek(Start(start))?;
@@ -413,6 +416,20 @@ impl<R: Read + Seek> WaveReader<R> {
         self.read_chunk(AXML_SIG, 0, buffer)
     }
 
+    /// Read the raw bytes of the `data` chunk into `buffer`.
+    ///
+    /// For PCM files these are raw sample bytes (use [`audio_frame_reader`](Self::audio_frame_reader)
+    /// instead for sample-level access). For codec-encoded data
+    /// (MPEG, ADPCM, A-Law, etc.) these are the codec body, which a
+    /// caller can hand to a separate codec implementation for
+    /// decoding.
+    ///
+    /// Returns the number of bytes read, or `Ok(0)` if the file has
+    /// no `data` chunk.
+    pub fn read_data_chunk(&mut self, buffer: &mut Vec<u8>) -> Result<usize, ParserError> {
+        self.read_chunk(DATA_SIG, 0, buffer)
+    }
+
     /**
      * Validate file is readable.
      *
@@ -639,4 +656,32 @@ fn test_list_form() {
     f.read_list(ADTL_SIG, &mut buf).unwrap();
 
     assert_ne!(buf.len(), 0);
+}
+
+#[test]
+fn audio_frame_reader_rejects_unsupported_format_cleanly() {
+    use std::io::Cursor;
+
+    // Construct a WaveFmt with the MPEG-1 tag (0x0050). AudioFrameReader
+    // can only decode IntegerPCM and IeeeFloatPCM, so any other tag
+    // must return Err(UnsupportedAudioFormat) instead of panicking.
+    let mpeg_format = WaveFmt {
+        tag: 0x0050,
+        channel_count: 2,
+        sample_rate: 44100,
+        bytes_per_second: 32000,
+        block_alignment: 836,
+        bits_per_sample: 0xFFFF,
+        extended_format: None,
+    };
+
+    let cursor = Cursor::new(vec![0u8; 16]);
+    let result = AudioFrameReader::new(cursor, mpeg_format, 0, 16);
+    match result {
+        Err(Error::UnsupportedAudioFormat { tag: 0x0050 }) => {}
+        other => panic!(
+            "expected UnsupportedAudioFormat {{ tag: 0x0050 }}, got: {:?}",
+            other
+        ),
+    }
 }
