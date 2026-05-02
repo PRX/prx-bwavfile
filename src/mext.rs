@@ -80,12 +80,14 @@ impl Mext {
         if !info.padding {
             sound_information |= Self::SOUND_PADDING_BIT_UNUSED;
         }
-        // Set the 44.1/22.05 kHz "padding may be used" bit only when
-        // the sample rate is from that family AND the first frame has
-        // padding. This matches the JS reference implementation's
-        // mpegSoundInformation_ semantics.
+        // Bit 2 fires for the 44.1/22.05 kHz family when the first
+        // frame is unpadded — matches PRX/prx-wavefile's JS source
+        // (lib/wavefile-creator.js::mpegSoundInformation_, which sets
+        // this bit when `(sampleRate == 44100 || 22050) && !info.padding`).
+        // The earlier `info.padding` (without `!`) was a transcription
+        // bug, since corrected.
         let in_44_or_22_family = info.sample_rate == 44100 || info.sample_rate == 22050;
-        if in_44_or_22_family && info.padding {
+        if in_44_or_22_family && !info.padding {
             sound_information |= Self::SOUND_PADDING_BIT_USED;
         }
         if info.free_format {

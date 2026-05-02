@@ -316,10 +316,10 @@ impl WaveFmt {
     ///
     /// Sets `tag = 0x0050`, populates [`mpeg1_format`](Self::mpeg1_format)
     /// from the provided [`MpegInfo`], and computes `bytes_per_second`
-    /// and `block_alignment` per EBU Tech 3285 Supplement 1. The
-    /// `bits_per_sample` field is set to `0` per the EBU sentinel for
-    /// MPEG audio (some encoders use `0xFFFF` instead; `0` is more
-    /// conventional and broadcast tools accept both).
+    /// and `block_alignment` per EBU Tech 3285 Supplement 1.
+    /// `bits_per_sample` is set to `0xFFFF` per the convention used by
+    /// PRX/prx-wavefile and observed in real broadcast distribution
+    /// files (matches the EBU sentinel value).
     pub fn new_mpeg1(info: &MpegInfo) -> Self {
         WaveFmt {
             tag: 0x0050,
@@ -327,7 +327,7 @@ impl WaveFmt {
             sample_rate: info.sample_rate,
             bytes_per_second: info.bit_rate * 1000 / 8,
             block_alignment: info.frame_size as u16,
-            bits_per_sample: 0,
+            bits_per_sample: 0xFFFF,
             extended_format: None,
             mpeg1_format: Some(WaveFmtMpeg1 {
                 head_layer: info.layer.head_layer(),
