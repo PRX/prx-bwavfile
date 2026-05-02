@@ -310,9 +310,37 @@ where
     /// Wrap a writer in a Wave writer.
     ///
     /// The inner writer will immediately have a RIFF WAVE file header
-    /// written to it along with the format descriptor (and possibly a `fact`
-    /// chunk if appropriate).
-    pub fn new(mut inner: W, format: WaveFmt) -> Result<Self, Error> {
+    /// written to it along with a 96-byte `JUNK` chunk reserving space
+    /// for an in-place upgrade to RF64 (if the data later exceeds 4 GB),
+    /// followed by the `fmt` chunk.
+    ///
+    /// For files that are guaranteed to stay under 4 GB and don't need
+    /// the RF64 promotion path, see
+    /// [`new_without_ds64_reservation`](Self::new_without_ds64_reservation)
+    /// — it omits the JUNK chunk for a more compact output.
+    pub fn new(inner: W, format: WaveFmt) -> Result<Self, Error> {
+        Self::new_with_options(inner, format, true)
+    }
+
+    /// Wrap a writer in a Wave writer **without** reserving space for
+    /// a future RF64 upgrade.
+    ///
+    /// Equivalent to [`new`](Self::new) except the 96-byte `JUNK`
+    /// `ds64` reservation is omitted. The output is more compact and
+    /// matches the byte layout produced by encoders that don't expect
+    /// to need RF64 (e.g. MP2 broadcast distribution files, which are
+    /// always well under the 4 GB threshold).
+    ///
+    /// The resulting writer **cannot** be safely upgraded to RF64
+    /// in-place — if more than 4 GB of data would be written, the
+    /// underlying RIFF size field overflows and the writer's behavior
+    /// is unspecified. Use the regular [`new`](Self::new) for any
+    /// file whose final size is unknown.
+    pub fn new_without_ds64_reservation(inner: W, format: WaveFmt) -> Result<Self, Error> {
+        Self::new_with_options(inner, format, false)
+    }
+
+    fn new_with_options(mut inner: W, format: WaveFmt, reserve_ds64: bool) -> Result<Self, Error> {
         inner.write_fourcc(RIFF_SIG)?;
         inner.write_u32::<LittleEndian>(0)?;
         inner.write_fourcc(WAVE_SIG)?;
@@ -326,8 +354,9 @@ where
 
         retval.increment_form_length(4)?;
 
-        // write ds64_reservation
-        retval.write_junk(DS64_RESERVATION_LENGTH)?;
+        if reserve_ds64 {
+            retval.write_junk(DS64_RESERVATION_LENGTH)?;
+        }
 
         let mut chunk = retval.chunk(FMT__SIG)?;
         chunk.write_wave_fmt(&format)?;

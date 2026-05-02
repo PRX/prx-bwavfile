@@ -140,7 +140,10 @@ impl BroadcastMpegFile {
     /// needed.
     pub fn write_to<W: Write + Seek>(self, writer: W) -> Result<(), Error> {
         let format = WaveFmt::new_mpeg1(&self.info);
-        let mut w = WaveWriter::new(writer, format)?;
+        // MP2 broadcast files are always well under 4 GB, so skip the
+        // RF64 reservation. Output matches PRX/NPR-encoder byte layout
+        // (no leading JUNK chunk).
+        let mut w = WaveWriter::new_without_ds64_reservation(writer, format)?;
 
         // fact: total decoded sample count, mandatory for non-PCM
         w.write_fact(&Fact {
