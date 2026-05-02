@@ -37,7 +37,12 @@ where
         self.write_u16::<LittleEndian>(format.block_alignment)?;
         self.write_u16::<LittleEndian>(format.bits_per_sample)?;
         if let Some(ext) = format.extended_format {
-            let cb_size = 24u16;
+            // Per Microsoft's WAVEFORMATEXTENSIBLE spec, cbSize declares
+            // the size of the extension *after* the cbSize field itself:
+            // wValidBitsPerSample (2) + dwChannelMask (4) + SubFormat (16)
+            // = 22 bytes. Writing 24 misreports the extension size; many
+            // readers tolerate it, but strict ones will over-read.
+            let cb_size = 22u16;
             self.write_u16::<LittleEndian>(cb_size)?;
             self.write_u16::<LittleEndian>(ext.valid_bits_per_sample)?;
             self.write_u32::<LittleEndian>(ext.channel_mask)?;
@@ -215,6 +220,45 @@ where
             },
         })
     }
+}
+
+#[test]
+fn write_wave_fmt_extensible_uses_cbsize_22() {
+    // Regression: cbSize for WAVEFORMATEXTENSIBLE must be 22 (the
+    // size of the extension *after* the cbSize field itself), per
+    // Microsoft spec: wValidBitsPerSample (2) + dwChannelMask (4) +
+    // SubFormat GUID (16) = 22.
+    use super::common_format::WAVE_UUID_PCM;
+    use super::fmt::{WaveFmt, WaveFmtExtended};
+    use std::io::Cursor;
+
+    let format = WaveFmt {
+        tag: 0xFFFE,
+        channel_count: 2,
+        sample_rate: 48000,
+        bytes_per_second: 192_000,
+        block_alignment: 4,
+        bits_per_sample: 16,
+        extended_format: Some(WaveFmtExtended {
+            valid_bits_per_sample: 16,
+            channel_mask: 0x3,
+            type_guid: WAVE_UUID_PCM,
+        }),
+    };
+
+    let mut buf = Cursor::new(Vec::<u8>::new());
+    buf.write_wave_fmt(&format).unwrap();
+    let bytes = buf.into_inner();
+
+    // Base WAVEFORMATEX (16) + cbSize field (2) + extension (22) = 40
+    assert_eq!(bytes.len(), 40);
+
+    // cbSize is at offset 16, little-endian
+    let cb_size = u16::from_le_bytes([bytes[16], bytes[17]]);
+    assert_eq!(
+        cb_size, 22,
+        "cbSize must be 22 per WAVEFORMATEXTENSIBLE spec"
+    );
 }
 
 #[test]
