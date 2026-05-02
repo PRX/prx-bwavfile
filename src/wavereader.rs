@@ -8,6 +8,7 @@ use std::io::SeekFrom::Start;
 use std::io::{BufReader, Read, Seek};
 
 use super::bext::Bext;
+use super::cart::Cart;
 use super::chunks::ReadBWaveChunks;
 use super::cue::Cue;
 use super::errors::Error as ParserError;
@@ -15,8 +16,8 @@ use super::errors::Error;
 use super::fact::Fact;
 use super::fmt::{ChannelDescriptor, ChannelMask, WaveFmt};
 use super::fourcc::{
-    FourCC, ReadFourCC, ADTL_SIG, AXML_SIG, BEXT_SIG, CUE__SIG, DATA_SIG, FACT_SIG, FLLR_SIG,
-    FMT__SIG, IXML_SIG, JUNK_SIG, LIST_SIG, MEXT_SIG,
+    FourCC, ReadFourCC, ADTL_SIG, AXML_SIG, BEXT_SIG, CART_SIG, CUE__SIG, DATA_SIG, FACT_SIG,
+    FLLR_SIG, FMT__SIG, IXML_SIG, JUNK_SIG, LIST_SIG, MEXT_SIG,
 };
 use super::mext::Mext;
 use super::parser::Parser;
@@ -346,6 +347,23 @@ impl<R: Read + Seek> WaveReader<R> {
         if result > 0 {
             let mut cursor = Cursor::new(buf);
             Ok(Some(cursor.read_mext()?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// The AES46-2002 `cart` chunk for this file, if present.
+    ///
+    /// Carries broadcast-automation cart metadata: title, artist,
+    /// scheduling timestamps, level reference, post-roll timers, and
+    /// a free-form tag-text trailer.
+    pub fn cart(&mut self) -> Result<Option<Cart>, ParserError> {
+        let mut buf: Vec<u8> = vec![];
+        let result = self.read_chunk(CART_SIG, 0, &mut buf)?;
+        if result > 0 {
+            let chunk_size = buf.len() as u64;
+            let mut cursor = Cursor::new(buf);
+            Ok(Some(cursor.read_cart(chunk_size)?))
         } else {
             Ok(None)
         }
