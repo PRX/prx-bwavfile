@@ -31,7 +31,7 @@ mod errors;
 mod fourcc;
 
 mod list_form;
-mod parser;
+pub mod parser;
 
 mod bext;
 mod chunks;
@@ -57,7 +57,9 @@ pub use fmt::{
     ADMAudioID, ChannelDescriptor, ChannelMask, ReadWavAudioData, WaveFmt, WaveFmtExtended,
     WaveFmtMpeg1,
 };
+pub use fourcc::FourCC;
 pub use mext::Mext;
+pub use parser::{ChunkIteratorItem, Parser};
 pub use sample::{Sample, I24};
 pub use wavereader::{AudioFrameReader, WaveReader};
 pub use wavewriter::{AudioFrameWriter, WaveWriter};
