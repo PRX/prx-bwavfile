@@ -60,6 +60,7 @@ pub use errors::Error;
 pub use fact::Fact;
 pub use fmt::{
     ADMAudioID, ChannelDescriptor, ChannelMask, ReadWavAudioData, WaveFmt, WaveFmtExtended,
+    WaveFmtMpeg1,
 };
 pub use mext::Mext;
 pub use sample::{Sample, I24};

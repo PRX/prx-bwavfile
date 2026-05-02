@@ -135,6 +135,51 @@ pub struct WaveFmtExtended {
     pub type_guid: Uuid,
 }
 
+/// MPEG-1 Wave Format extension (`MPEG1WAVEFORMAT`).
+///
+/// Present in WAVE files whose [`WaveFmt::tag`] is `0x0050` (MPEG-1
+/// audio, including MPEG-1 Layer II / MP2), as defined by EBU Tech 3285
+/// Supplement 1. The extension carries MPEG-specific framing information
+/// that the standard `fmt` chunk cannot express.
+///
+/// Mutually exclusive with [`WaveFmtExtended`]: only one of
+/// [`WaveFmt::extended_format`] and [`WaveFmt::mpeg1_format`] is ever
+/// `Some` for a given file. The `tag` field selects which.
+///
+/// All fields are little-endian, despite the MPEG bitstream being
+/// big-endian — the WAVE container places this struct in RIFF byte
+/// order.
+///
+/// ## Resources
+/// - [EBU Tech 3285 Supplement 1](https://tech.ebu.ch/docs/tech/tech3285s1.pdf), §2.1
+/// - [MPEG1WAVEFORMAT](https://learn.microsoft.com/en-us/previous-versions/dd757717(v=vs.85))
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct WaveFmtMpeg1 {
+    /// MPEG audio layer flags (e.g. `2` for Layer II, `4` for Layer III).
+    pub head_layer: u16,
+
+    /// Average bit rate in **bits per second** (not kbps).
+    pub head_bit_rate: u32,
+
+    /// Channel mode flags (stereo / joint stereo / dual mono / mono).
+    pub head_mode: u16,
+
+    /// Mode extension (only meaningful when `head_mode` indicates joint stereo).
+    pub head_mode_ext: u16,
+
+    /// Audio emphasis flags.
+    pub head_emphasis: u16,
+
+    /// Bitfield of per-frame flags (CRC, copyright, original, padding, etc.).
+    pub head_flags: u16,
+
+    /// Low 32 bits of the presentation time stamp (PTS), in 90 kHz units.
+    pub pts_low: u32,
+
+    /// High 32 bits of the presentation time stamp (PTS), in 90 kHz units.
+    pub pts_high: u32,
+}
+
 ///
 /// WAV file data format record.
 ///
@@ -201,7 +246,18 @@ pub struct WaveFmt {
     ///
     /// Additional format metadata if channel_count is greater than 2,
     /// or if certain codecs are used.
+    ///
+    /// Mutually exclusive with [`mpeg1_format`](Self::mpeg1_format):
+    /// at most one of these is `Some` for a given file. `tag == 0xFFFE`
+    /// selects this variant.
     pub extended_format: Option<WaveFmtExtended>,
+
+    /// MPEG-1 audio format extension (`MPEG1WAVEFORMAT`).
+    ///
+    /// Present when `tag == 0x0050` (MPEG-1 audio, e.g. MP2). Defined
+    /// by EBU Tech 3285 Supplement 1. Mutually exclusive with
+    /// [`extended_format`](Self::extended_format).
+    pub mpeg1_format: Option<WaveFmtMpeg1>,
 }
 
 impl WaveFmt {
@@ -211,6 +267,13 @@ impl WaveFmt {
         } else {
             self.bits_per_sample
         }
+    }
+
+    /// MPEG-1 format extension if this `fmt` chunk describes MPEG-1 audio.
+    ///
+    /// Returns `Some` for files where `tag == 0x0050`, `None` otherwise.
+    pub fn mpeg1_extension(&self) -> Option<&WaveFmtMpeg1> {
+        self.mpeg1_format.as_ref()
     }
 
     /// Create a new integer PCM format for a monoaural audio stream.
@@ -243,6 +306,7 @@ impl WaveFmt {
                 channel_mask: ChannelMask::DirectOut as u32,
                 type_guid: WAVE_UUID_BFORMAT_PCM,
             }),
+            mpeg1_format: None,
         }
     }
 
@@ -296,6 +360,7 @@ impl WaveFmt {
             block_alignment: container_bytes_per_sample * channel_count,
             bits_per_sample: container_bits_per_sample,
             extended_format: extformat,
+            mpeg1_format: None,
         }
     }
 
@@ -310,7 +375,7 @@ impl WaveFmt {
     /// Create a frame buffer sized to hold `length` frames for a reader or
     /// writer
     ///
-    /// This is a conveneince method that creates a `Vec<i32>` with
+    /// This is a convenience method that creates a `Vec<i32>` with
     /// as many elements as there are channels in the underlying stream.
     pub fn create_frame_buffer<S: Sample>(&self, length: usize) -> Vec<S> {
         vec![S::EQUILIBRIUM; self.channel_count as usize * length]
@@ -432,6 +497,125 @@ where
 trait WriteWavAudioData {
     fn write_i32_frames(&mut self, format: WaveFmt, from: &[i32]) -> Result<usize, std::io::Error>;
     fn write_f32_frames(&mut self, format: WaveFmt, from: &[f32]) -> Result<usize, std::io::Error>;
+}
+
+#[cfg(test)]
+mod mpeg1_tests {
+    use super::*;
+    use crate::chunks::{ReadBWaveChunks, WriteBWaveChunks};
+    use crate::wavereader::WaveReader;
+    use std::io::{Cursor, Seek, SeekFrom};
+
+    fn sample_mpeg1_fmt() -> WaveFmt {
+        WaveFmt {
+            tag: 0x0050,
+            channel_count: 2,
+            sample_rate: 44100,
+            bytes_per_second: 256_000 / 8,
+            block_alignment: 836,
+            // EBU 3285-S1 sentinel for MPEG audio: bits_per_sample is 0
+            // (or 0xFFFF in some encoders; both are valid).
+            bits_per_sample: 0,
+            extended_format: None,
+            mpeg1_format: Some(WaveFmtMpeg1 {
+                head_layer: 2, // Layer II
+                head_bit_rate: 256_000,
+                head_mode: 1, // stereo
+                head_mode_ext: 0,
+                head_emphasis: 1,
+                head_flags: 0,
+                pts_low: 0,
+                pts_high: 0,
+            }),
+        }
+    }
+
+    #[test]
+    fn mpeg1_fmt_round_trip_via_chunks_traits() {
+        let original = sample_mpeg1_fmt();
+        let mut buf = Cursor::new(Vec::<u8>::new());
+        buf.write_wave_fmt(&original).unwrap();
+        // Base 16 + cb_size 2 + 22 extension = 40 bytes
+        assert_eq!(buf.get_ref().len(), 40);
+        buf.seek(SeekFrom::Start(0)).unwrap();
+        let parsed = buf.read_wave_fmt().unwrap();
+
+        assert_eq!(parsed.tag, original.tag);
+        assert_eq!(parsed.channel_count, original.channel_count);
+        assert_eq!(parsed.sample_rate, original.sample_rate);
+        assert_eq!(parsed.bytes_per_second, original.bytes_per_second);
+        assert_eq!(parsed.block_alignment, original.block_alignment);
+        assert_eq!(parsed.bits_per_sample, original.bits_per_sample);
+        assert!(parsed.extended_format.is_none());
+        assert_eq!(parsed.mpeg1_format, original.mpeg1_format);
+    }
+
+    #[test]
+    fn mpeg1_extension_accessor() {
+        let f = sample_mpeg1_fmt();
+        assert!(f.mpeg1_extension().is_some());
+        assert_eq!(f.mpeg1_extension().unwrap().head_layer, 2);
+
+        let pcm = WaveFmt::new_pcm_mono(48000, 24);
+        assert!(pcm.mpeg1_extension().is_none());
+        assert!(pcm.mpeg1_format.is_none());
+    }
+
+    #[test]
+    fn pcm_constructors_set_mpeg1_format_to_none() {
+        assert!(WaveFmt::new_pcm_mono(48000, 24).mpeg1_format.is_none());
+        assert!(WaveFmt::new_pcm_stereo(48000, 16).mpeg1_format.is_none());
+        assert!(WaveFmt::new_pcm_multichannel(48000, 24, 0x3F)
+            .mpeg1_format
+            .is_none());
+        assert!(WaveFmt::new_pcm_ambisonic(48000, 24, 4)
+            .mpeg1_format
+            .is_none());
+    }
+
+    #[test]
+    fn read_60315_wav_has_mpeg1_fmt() {
+        let mut reader = WaveReader::open("tests/media/60315.wav").unwrap();
+        let format = reader.format().unwrap();
+
+        assert_eq!(format.tag, 0x0050, "60315.wav should be tag 0x0050 (MPEG)");
+        assert!(format.extended_format.is_none());
+        let mpeg1 = format
+            .mpeg1_extension()
+            .expect("60315.wav must have MPEG-1 fmt extension");
+
+        // 60315.wav is a real broadcast MP2 file, so we can assert
+        // structural sanity:
+        // - Layer II → head_layer is at least non-zero (typically 2)
+        // - head_bit_rate is in bits/second, so a typical broadcast
+        //   bit rate (e.g. 256 kbps) is hundreds of thousands.
+        assert!(mpeg1.head_layer > 0, "head_layer should be set");
+        assert!(
+            mpeg1.head_bit_rate >= 32_000,
+            "head_bit_rate is bits/sec, should be at least 32 kbps"
+        );
+    }
+
+    #[test]
+    fn extended_and_mpeg1_are_mutually_exclusive_in_practice() {
+        // Plain PCM file: neither variant should be set.
+        let mut pcm = WaveReader::open("tests/media/ff_silence.wav").unwrap();
+        let pcm_fmt = pcm.format().unwrap();
+        assert!(pcm_fmt.extended_format.is_none());
+        assert!(pcm_fmt.mpeg1_format.is_none());
+
+        // Multichannel WAVE_FORMAT_EXTENSIBLE: only extended_format is set.
+        let mut x51 = WaveReader::open("tests/media/pt_24bit_51.wav").unwrap();
+        let x51_fmt = x51.format().unwrap();
+        assert!(x51_fmt.extended_format.is_some());
+        assert!(x51_fmt.mpeg1_format.is_none());
+
+        // MPEG: only mpeg1_format is set.
+        let mut mpeg = WaveReader::open("tests/media/60315.wav").unwrap();
+        let mpeg_fmt = mpeg.format().unwrap();
+        assert!(mpeg_fmt.extended_format.is_none());
+        assert!(mpeg_fmt.mpeg1_format.is_some());
+    }
 }
 
 impl<T> WriteWavAudioData for T
