@@ -140,9 +140,17 @@ impl BroadcastMpegFile {
     /// needed.
     pub fn write_to<W: Write + Seek>(self, writer: W) -> Result<(), Error> {
         let format = WaveFmt::new_mpeg1(&self.info);
-        // MP2 broadcast files are always well under 4 GB, so skip the
-        // RF64 reservation. Output matches PRX/NPR-encoder byte layout
-        // (no leading JUNK chunk).
+        // Skip the 96-byte ds64 JUNK reservation. The reservation only
+        // matters if the file's form_length (sum of all chunks) might
+        // exceed 4 GiB and trigger RF64 promotion. For BroadcastMpegFile:
+        //   - WaveWriter::write_data_raw asserts the data chunk itself
+        //     is < 4 GiB, capping the dominant contributor.
+        //   - The metadata chunks (fmt, fact, mext, bext, cart) total at
+        //     most a few KB unless cart.tag_text is unusually large.
+        //   - 256 kbps MP2 at the 4 GiB data-chunk ceiling would be
+        //     ~36 hours — well beyond any realistic broadcast cart.
+        // So in practice form_length stays well under 4 GiB and ds64
+        // is never needed.
         let mut w = WaveWriter::new_without_ds64_reservation(writer, format)?;
 
         // fact: total decoded sample count, mandatory for non-PCM
