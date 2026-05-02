@@ -11,18 +11,21 @@ use uuid::Uuid;
 
 use super::bext::Bext;
 use super::errors::Error as ParserError;
+use super::fact::Fact;
 use super::fmt::{WaveFmt, WaveFmtExtended};
 
 pub trait ReadBWaveChunks: Read {
     fn read_bext(&mut self) -> Result<Bext, ParserError>;
     fn read_bext_string_field(&mut self, length: usize) -> Result<String, ParserError>;
     fn read_wave_fmt(&mut self) -> Result<WaveFmt, ParserError>;
+    fn read_fact(&mut self) -> Result<Fact, ParserError>;
 }
 
 pub trait WriteBWaveChunks: Write {
     fn write_wave_fmt(&mut self, format: &WaveFmt) -> Result<(), ParserError>;
     fn write_bext_string_field(&mut self, string: &str, length: usize) -> Result<(), ParserError>;
     fn write_bext(&mut self, bext: &Bext) -> Result<(), ParserError>;
+    fn write_fact(&mut self, fact: &Fact) -> Result<(), ParserError>;
 }
 
 impl<T> WriteBWaveChunks for T
@@ -92,6 +95,11 @@ where
             .expect("Error");
 
         self.write_all(&coding)?;
+        Ok(())
+    }
+
+    fn write_fact(&mut self, fact: &Fact) -> Result<(), ParserError> {
+        self.write_u32::<LittleEndian>(fact.sample_length)?;
         Ok(())
     }
 }
@@ -213,6 +221,12 @@ where
                     .decode(&buf, DecoderTrap::Ignore)
                     .expect("Error decoding text")
             },
+        })
+    }
+
+    fn read_fact(&mut self) -> Result<Fact, ParserError> {
+        Ok(Fact {
+            sample_length: self.read_u32::<LittleEndian>()?,
         })
     }
 }
