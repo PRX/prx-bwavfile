@@ -10,9 +10,11 @@ use byteorder::{ReadBytesExt, WriteBytesExt};
 use uuid::Uuid;
 
 use super::bext::Bext;
+use super::cart::{Cart, CartTimer};
 use super::errors::Error as ParserError;
 use super::fact::Fact;
 use super::fmt::{WaveFmt, WaveFmtExtended, WaveFmtMpeg1};
+use super::fourcc::{FourCC, WriteFourCC};
 use super::mext::Mext;
 
 pub trait ReadBWaveChunks: Read {
@@ -21,6 +23,7 @@ pub trait ReadBWaveChunks: Read {
     fn read_wave_fmt(&mut self) -> Result<WaveFmt, ParserError>;
     fn read_fact(&mut self) -> Result<Fact, ParserError>;
     fn read_mext(&mut self) -> Result<Mext, ParserError>;
+    fn read_cart(&mut self, chunk_size: u64) -> Result<Cart, ParserError>;
 }
 
 pub trait WriteBWaveChunks: Write {
@@ -29,6 +32,7 @@ pub trait WriteBWaveChunks: Write {
     fn write_bext(&mut self, bext: &Bext) -> Result<(), ParserError>;
     fn write_fact(&mut self, fact: &Fact) -> Result<(), ParserError>;
     fn write_mext(&mut self, mext: &Mext) -> Result<(), ParserError>;
+    fn write_cart(&mut self, cart: &Cart) -> Result<(), ParserError>;
 }
 
 impl<T> WriteBWaveChunks for T
@@ -128,6 +132,45 @@ where
         self.write_u16::<LittleEndian>(mext.ancillary_data_length)?;
         self.write_u16::<LittleEndian>(mext.ancillary_data_def)?;
         self.write_all(&mext.reserved)?;
+        Ok(())
+    }
+
+    fn write_cart(&mut self, cart: &Cart) -> Result<(), ParserError> {
+        // The bext_string_field helpers handle ASCII encoding + NUL-padding
+        // to a fixed length; cart's many fixed-length ASCII slots reuse
+        // them despite the misleading name.
+        self.write_bext_string_field(&cart.version, 4)?;
+        self.write_bext_string_field(&cart.title, 64)?;
+        self.write_bext_string_field(&cart.artist, 64)?;
+        self.write_bext_string_field(&cart.cut_id, 64)?;
+        self.write_bext_string_field(&cart.client_id, 64)?;
+        self.write_bext_string_field(&cart.category, 64)?;
+        self.write_bext_string_field(&cart.classification, 64)?;
+        self.write_bext_string_field(&cart.out_cue, 64)?;
+        self.write_bext_string_field(&cart.start_date, 10)?;
+        self.write_bext_string_field(&cart.start_time, 8)?;
+        self.write_bext_string_field(&cart.end_date, 10)?;
+        self.write_bext_string_field(&cart.end_time, 8)?;
+        self.write_bext_string_field(&cart.producer_app_id, 64)?;
+        self.write_bext_string_field(&cart.producer_app_version, 64)?;
+        self.write_bext_string_field(&cart.user_def, 64)?;
+        // Signed per AES46-2002 §5.2.16.
+        self.write_i32::<LittleEndian>(cart.level_reference)?;
+        for timer in &cart.post_timers {
+            self.write_fourcc(timer.usage)?;
+            self.write_u32::<LittleEndian>(timer.value)?;
+        }
+        self.write_all(&cart.reserved)?;
+        // URL field is absent in legacy version "0000".
+        if !cart.is_legacy_v0() {
+            self.write_bext_string_field(&cart.url, 1024)?;
+        }
+        // tag_text is variable-length, no NUL pad. RIFF odd-length pad
+        // byte is added by the WaveChunkWriter wrapper, not here.
+        let coding = ASCII
+            .encode(&cart.tag_text, EncoderTrap::Ignore)
+            .expect("Error encoding tag_text");
+        self.write_all(&coding)?;
         Ok(())
     }
 }
@@ -288,6 +331,81 @@ where
                 self.read_exact(&mut buf)?;
                 buf
             },
+        })
+    }
+
+    fn read_cart(&mut self, chunk_size: u64) -> Result<Cart, ParserError> {
+        let version = self.read_bext_string_field(4)?;
+        let title = self.read_bext_string_field(64)?;
+        let artist = self.read_bext_string_field(64)?;
+        let cut_id = self.read_bext_string_field(64)?;
+        let client_id = self.read_bext_string_field(64)?;
+        let category = self.read_bext_string_field(64)?;
+        let classification = self.read_bext_string_field(64)?;
+        let out_cue = self.read_bext_string_field(64)?;
+        let start_date = self.read_bext_string_field(10)?;
+        let start_time = self.read_bext_string_field(8)?;
+        let end_date = self.read_bext_string_field(10)?;
+        let end_time = self.read_bext_string_field(8)?;
+        let producer_app_id = self.read_bext_string_field(64)?;
+        let producer_app_version = self.read_bext_string_field(64)?;
+        let user_def = self.read_bext_string_field(64)?;
+        // Signed per AES46-2002 §5.2.16.
+        let level_reference = self.read_i32::<LittleEndian>()?;
+        let mut post_timers: [CartTimer; 8] = <[CartTimer; 8]>::default();
+        for timer in &mut post_timers {
+            let usage_bytes: [u8; 4] = {
+                let mut buf = [0u8; 4];
+                self.read_exact(&mut buf)?;
+                buf
+            };
+            timer.usage = FourCC::from(usage_bytes);
+            timer.value = self.read_u32::<LittleEndian>()?;
+        }
+        let reserved: [u8; 276] = {
+            let mut buf = [0u8; 276];
+            self.read_exact(&mut buf)?;
+            buf
+        };
+        // Legacy "0000" cart chunks omit the 1024-byte URL field.
+        let is_legacy = version == "0000";
+        let url = if is_legacy {
+            String::new()
+        } else {
+            self.read_bext_string_field(1024)?
+        };
+        let fixed_size: u64 = if is_legacy { 1024 } else { 2048 };
+        let tag_text_len = chunk_size.saturating_sub(fixed_size);
+        let tag_text = if tag_text_len > 0 {
+            let mut tag_buf = vec![0u8; tag_text_len as usize];
+            self.read_exact(&mut tag_buf)?;
+            ASCII
+                .decode(&tag_buf, DecoderTrap::Ignore)
+                .expect("Error decoding tag_text")
+        } else {
+            String::new()
+        };
+        Ok(Cart {
+            version,
+            title,
+            artist,
+            cut_id,
+            client_id,
+            category,
+            classification,
+            out_cue,
+            start_date,
+            start_time,
+            end_date,
+            end_time,
+            producer_app_id,
+            producer_app_version,
+            user_def,
+            level_reference,
+            post_timers,
+            reserved,
+            url,
+            tag_text,
         })
     }
 }

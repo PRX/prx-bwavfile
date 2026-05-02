@@ -39,6 +39,7 @@ mod list_form;
 mod parser;
 
 mod bext;
+mod cart;
 mod chunks;
 mod cue;
 mod fact;
@@ -51,6 +52,7 @@ mod wavereader;
 mod wavewriter;
 
 pub use bext::Bext;
+pub use cart::{Cart, CartTimer};
 pub use common_format::{
     CommonFormat, WAVE_TAG_EXTENDED, WAVE_TAG_FLOAT, WAVE_TAG_MPEG, WAVE_TAG_PCM,
     WAVE_UUID_BFORMAT_FLOAT, WAVE_UUID_BFORMAT_PCM, WAVE_UUID_FLOAT, WAVE_UUID_MPEG, WAVE_UUID_PCM,
@@ -62,6 +64,7 @@ pub use fmt::{
     ADMAudioID, ChannelDescriptor, ChannelMask, ReadWavAudioData, WaveFmt, WaveFmtExtended,
     WaveFmtMpeg1,
 };
+pub use fourcc::FourCC;
 pub use mext::Mext;
 pub use sample::{Sample, I24};
 pub use wavereader::{AudioFrameReader, WaveReader};
