@@ -5,7 +5,7 @@ use std::io;
 ///
 /// For idetifying chunks, structured contiguous slices or segments
 /// within a WAV file.
-#[derive(Eq, PartialEq, Hash, Copy, Clone)]
+#[derive(Default, Eq, PartialEq, Hash, Copy, Clone)]
 pub struct FourCC([u8; 4]);
 
 impl FourCC {
@@ -121,6 +121,7 @@ pub const FMT__SIG: FourCC = FourCC::make(b"fmt ");
 
 pub const BEXT_SIG: FourCC = FourCC::make(b"bext");
 //pub const FACT_SIG: FourCC = FourCC::make(b"fact");
+pub const CART_SIG: FourCC = FourCC::make(b"cart");
 pub const IXML_SIG: FourCC = FourCC::make(b"iXML");
 pub const AXML_SIG: FourCC = FourCC::make(b"axml");
 
