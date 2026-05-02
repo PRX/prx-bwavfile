@@ -47,6 +47,9 @@ pub enum Error {
         buffer_size: usize,
         channel_count: u16,
     },
+
+    /// MPEG audio frame parsing failed.
+    MpegParseError(String),
 }
 
 impl StdError for Error {}

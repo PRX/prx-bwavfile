@@ -45,6 +45,7 @@ mod cue;
 mod fact;
 mod fmt;
 mod mext;
+mod mpeg;
 
 mod sample;
 
@@ -66,6 +67,7 @@ pub use fmt::{
 };
 pub use fourcc::FourCC;
 pub use mext::Mext;
+pub use mpeg::{ChannelMode, MpegInfo, MpegLayer, MpegVersion};
 pub use sample::{Sample, I24};
 pub use wavereader::{AudioFrameReader, WaveReader};
 pub use wavewriter::{AudioFrameWriter, WaveWriter};
