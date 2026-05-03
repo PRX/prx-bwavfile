@@ -53,6 +53,9 @@ pub enum Error {
     /// `data` chunk; this crate exposes the raw bytes via
     /// [`crate::WaveReader::read_data_chunk`].
     UnsupportedAudioFormat { tag: u16 },
+
+    /// MPEG audio frame parsing failed.
+    MpegParseError(String),
 }
 
 impl StdError for Error {}

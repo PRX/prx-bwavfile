@@ -6,6 +6,9 @@ touch media/error.wav
 
 tar xzf test_media.tgz
 
+# MPEG audio fixtures for the MPEG-in-BWF tests.
+tar xzf test_media_mpeg.tgz
+
 # create a silent bext wave file with fixture metadata and a time refernce starting at
 # one minute
 #
