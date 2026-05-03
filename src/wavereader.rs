@@ -245,7 +245,7 @@ impl<R: Read + Seek> WaveReader<R> {
     /// will return an `Err(errors::Error)` immediately if there is a structural
     /// inconsistency that makes the stream unreadable or if it's missing
     /// essential components that make interpreting the audio data impossible.
-
+    ///
     /// ```rust
     /// use std::fs::File;
     /// use std::io::{Error,ErrorKind};

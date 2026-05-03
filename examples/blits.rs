@@ -35,7 +35,7 @@ fn dbfs_to_f32(dbfs: f32) -> f32 {
 }
 
 fn dbfs_to_signed_int(dbfs: f32, bit_depth: u16) -> i32 {
-    let full_code: i32 = (1i32 << bit_depth - 1) - 1;
+    let full_code: i32 = (1i32 << (bit_depth - 1)) - 1;
     ((full_code as f32) * dbfs_to_f32(dbfs)) as i32
 }
 
@@ -65,7 +65,7 @@ trait ToneBurstSignal {
 impl ToneBurstSignal for Vec<ToneBurst> {
     fn duration(&self, sample_rate: u32) -> u64 {
         self.iter()
-            .fold(0u64, |accum, &item| accum + &item.duration(sample_rate))
+            .fold(0u64, |accum, &item| accum + item.duration(sample_rate))
     }
 
     fn signal(&self, t: u64, sample_rate: u32, bit_depth: u16) -> i32 {
@@ -73,7 +73,7 @@ impl ToneBurstSignal for Vec<ToneBurst> {
             .scan(0u64, |accum, &item| {
                 let dur = item.duration(sample_rate);
                 let this_time_range = *accum..(*accum + dur);
-                *accum = *accum + dur;
+                *accum += dur;
                 Some((this_time_range, item))
             })
             .find(|(range, _)| range.contains(&t))
@@ -255,7 +255,7 @@ fn main() -> io::Result<()> {
 
     let filename = matches.value_of("OUTPUT").unwrap();
 
-    match create_blits_file(&filename, sample_rate, bits_per_sample) {
+    match create_blits_file(filename, sample_rate, bits_per_sample) {
         Err(Error::IOError(x)) => panic!("IO Error: {:?}", x),
         Err(err) => panic!("Error: {:?}", err),
         Ok(()) => Ok(()),
