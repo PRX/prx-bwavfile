@@ -36,6 +36,7 @@ dependencies = [
  "clap",
  "dasp_sample",
  "encoding",
+ "mp3-metadata",
  "serde_json",
  "uuid",
 ]
@@ -151,6 +152,12 @@ name = "libc"
 version = "0.2.103"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd8f7255a17a627354f321ef0055d63b898c6fb27eff628af4d1b66b7331edf6"
+
+[[package]]
+name = "mp3-metadata"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e462514acb482a039cf915999d6cca0474dfa9d711f040025cf394d54f0f92e4"
 
 [[package]]
 name = "ryu"

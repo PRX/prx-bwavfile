@@ -39,6 +39,8 @@ mod cue;
 mod fact;
 mod fmt;
 mod mext;
+mod mpeg;
+mod mpeg_bwf;
 
 mod sample;
 
@@ -59,6 +61,8 @@ pub use fmt::{
 };
 pub use fourcc::FourCC;
 pub use mext::Mext;
+pub use mpeg::{ChannelMode, MpegInfo, MpegLayer, MpegVersion};
+pub use mpeg_bwf::BroadcastMpegFile;
 pub use parser::{ChunkIteratorItem, Parser};
 pub use sample::{Sample, I24};
 pub use wavereader::{AudioFrameReader, WaveReader};

@@ -704,6 +704,7 @@ fn audio_frame_reader_rejects_unsupported_format_cleanly() {
         block_alignment: 836,
         bits_per_sample: 0xFFFF,
         extended_format: None,
+        mpeg1_format: None,
     };
 
     let cursor = Cursor::new(vec![0u8; 16]);
