@@ -1,3 +1,8 @@
+//! <div class="warning">
+//! Some changes in this file were made with assistance from a generative AI
+//! model: Anthropic Claude Opus 4.7 (`claude-opus-4-7`), 2026-05-02.
+//! </div>
+
 extern crate serde_json;
 use core::fmt::Debug;
 use serde_json::{from_str, Value};

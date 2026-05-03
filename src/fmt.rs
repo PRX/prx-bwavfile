@@ -1,3 +1,8 @@
+//! <div class="warning">
+//! Some changes in this file were made with assistance from a generative AI
+//! model: Anthropic Claude Opus 4.7 (`claude-opus-4-7`), 2026-05-02.
+//! </div>
+
 use crate::common_format::{CommonFormat, WAVE_UUID_BFORMAT_PCM, WAVE_UUID_PCM};
 use crate::Sample;
 
