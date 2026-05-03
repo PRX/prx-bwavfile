@@ -12,7 +12,7 @@ fn test_open() {
     match WaveReader::open(path) {
         Ok(_) => (),
         Err(x) => {
-            assert!(false, "Opened error.wav with unexpected error {:?}", x)
+            panic!("Opened error.wav with unexpected error {:?}", x)
         }
     }
 }
@@ -27,7 +27,7 @@ fn test_format_silence() -> Result<(), Error> {
 
     assert_eq!(format.sample_rate, 44100);
     assert_eq!(format.channel_count, 1);
-    assert_eq!(format.tag as u16, 1);
+    assert_eq!({ format.tag }, 1);
     Ok(())
 }
 
@@ -35,11 +35,7 @@ fn test_format_silence() -> Result<(), Error> {
 fn test_format_error() {
     let path = "tests/media/error.wav";
 
-    if let Ok(_) = WaveReader::open(path) {
-        assert!(false);
-    } else {
-        assert!(true);
-    }
+    assert!(WaveReader::open(path).is_err());
 }
 
 #[test]
@@ -59,21 +55,19 @@ fn test_minimal_wave() {
 
     let mut w = WaveReader::open(path).expect("Failure opening file");
 
-    if let Err(Error::NotMinimalWaveFile) = w.validate_minimal() {
-        assert!(true);
-    } else {
-        assert!(false);
-    }
+    assert!(matches!(
+        w.validate_minimal(),
+        Err(Error::NotMinimalWaveFile)
+    ));
 
     let min_path = "tests/media/ff_minimal.wav";
 
     let mut w = WaveReader::open(min_path).expect("Failure opening file");
 
-    if let Err(Error::NotMinimalWaveFile) = w.validate_minimal() {
-        assert!(false);
-    } else {
-        assert!(true);
-    }
+    assert!(!matches!(
+        w.validate_minimal(),
+        Err(Error::NotMinimalWaveFile)
+    ));
 }
 
 #[test]
@@ -164,7 +158,7 @@ fn test_frame_reader_consumes_reader() {
     fn from_wav_filename(
         wav_filename: &str,
     ) -> Result<(WaveFmt, AudioFrameReader<std::io::BufReader<File>>), ()> {
-        if let Ok(mut r) = WaveReader::open(&wav_filename) {
+        if let Ok(mut r) = WaveReader::open(wav_filename) {
             let format = r.format().unwrap();
             let frame_reader = r.audio_frame_reader().unwrap();
             Ok((format, frame_reader))

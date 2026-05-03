@@ -505,7 +505,7 @@ fn test_write_audio() {
     let data_size = cursor.read_u32::<LittleEndian>().unwrap(); //4
     assert_eq!(data_size, 9);
 
-    let tell = cursor.seek(SeekFrom::Current(0)).unwrap();
+    let tell = cursor.stream_position().unwrap();
     assert!(tell % 0x4000 == 0);
 
     assert_eq!(
@@ -560,7 +560,7 @@ fn test_create_rf64() {
     let format = WaveFmt::new_pcm_stereo(48000, 24);
     let w = WaveWriter::new(&mut cursor, format).unwrap();
 
-    let buflen = 16000 as u64;
+    let buflen = 16000_u64;
 
     let buf = vec![0i32; buflen as usize];
 

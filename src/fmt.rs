@@ -8,8 +8,6 @@ use byteorder::LittleEndian;
 use byteorder::ReadBytesExt;
 
 // Need more test cases for ADMAudioID
-#[allow(dead_code)]
-
 /// ADM Audio ID record.
 ///
 /// This structure relates a channel in the wave file to either a common ADM
@@ -21,6 +19,7 @@ use byteorder::ReadBytesExt;
 ///
 /// See BS.2088-1 § 8, also BS.2094, also blahblahblah...
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct ADMAudioID {
     pub track_uid: [char; 12],
     pub channel_format_ref: [char; 14],
@@ -154,7 +153,7 @@ pub struct WaveFmtExtended {
 /// - [Sampler Metadata](http://www.piclist.com/techref/io/serial/midi/wave.html)
 /// - [Audio File Format Specifications](http://www-mmsp.ece.mcgill.ca/Documents/AudioFormats/WAVE/WAVE.html) (September 2022) Prof. Peter Kabal, MMSP Lab, ECE, McGill University
 /// - [Multimedia Programming Interface and Data Specifications 1.0](http://www-mmsp.ece.mcgill.ca/Documents/AudioFormats/WAVE/Docs/riffmci.pdf)
-///    (August 1991), IBM Corporation and Microsoft Corporation
+///   (August 1991), IBM Corporation and Microsoft Corporation
 ///
 /// [rfc3261]: https://tools.ietf.org/html/rfc2361
 
@@ -429,6 +428,7 @@ where
     }
 }
 
+#[allow(dead_code)]
 trait WriteWavAudioData {
     fn write_i32_frames(&mut self, format: WaveFmt, from: &[i32]) -> Result<usize, std::io::Error>;
     fn write_f32_frames(&mut self, format: WaveFmt, from: &[f32]) -> Result<usize, std::io::Error>;
