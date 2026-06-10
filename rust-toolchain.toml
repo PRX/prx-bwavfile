@@ -1,0 +1,6 @@
+[toolchain]
+# Upstream bwavfile (>= 2.0.1) uses unsigned `is_multiple_of`, stabilized in
+# Rust 1.87. Pin this repo to the stable channel so builds pick up a new-enough
+# toolchain regardless of the machine's default. Repo-local: does not affect
+# other projects (e.g. prx-link).
+channel = "stable"
