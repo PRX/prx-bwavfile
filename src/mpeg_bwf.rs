@@ -8,6 +8,7 @@ use std::io::{BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
 use crate::bext::Bext;
+use crate::cart::Cart;
 use crate::errors::Error;
 use crate::fact::Fact;
 use crate::fmt::WaveFmt;
@@ -22,7 +23,7 @@ use crate::wavewriter::WaveWriter;
 /// an MP2 file plus optional broadcast metadata and produce a
 /// BWF-compliant WAVE file containing the MP2 data plus the chunks
 /// broadcast automation systems expect (`fmt` extended for MPEG,
-/// `fact`, `mext`, `bext`).
+/// `fact`, `mext`, `bext`, `cart`).
 ///
 /// # Example
 ///
@@ -56,12 +57,12 @@ use crate::wavewriter::WaveWriter;
 /// # Chunk write order
 ///
 /// Chunks are written in the order broadcast tools expect:
-/// `fmt` → `fact` → `mext` → `bext` (if any) → `data`.
+/// `fmt` → `fact` → `mext` → `bext` (if any) → `cart` (if any) → `data`.
 ///
 /// # ID3v2 handling
 ///
 /// If the MPEG source begins with an ID3v2 tag, that prefix is
-/// stripped — broadcast WAVs carry metadata in `bext`, not
+/// stripped — broadcast WAVs carry metadata in `bext` and `cart`, not
 /// ID3. The MPEG audio body (starting at the first MPEG sync byte) is
 /// written verbatim to the `data` chunk.
 ///
@@ -77,6 +78,7 @@ pub struct BroadcastMpegFile {
     /// MPEG audio bytes with any ID3v2 prefix already stripped.
     mpeg_bytes: Vec<u8>,
     bext: Option<Bext>,
+    cart: Option<Cart>,
 }
 
 impl BroadcastMpegFile {
@@ -90,6 +92,7 @@ impl BroadcastMpegFile {
             info,
             mpeg_bytes,
             bext: None,
+            cart: None,
         })
     }
 
@@ -117,6 +120,12 @@ impl BroadcastMpegFile {
         self
     }
 
+    /// Attach an AES46-2002 `cart` chunk.
+    pub fn with_cart(mut self, cart: Cart) -> Self {
+        self.cart = Some(cart);
+        self
+    }
+
     /// Parsed MPEG frame info from the source.
     pub fn info(&self) -> &MpegInfo {
         &self.info
@@ -141,10 +150,10 @@ impl BroadcastMpegFile {
         // exceed 4 GiB and trigger RF64 promotion. For BroadcastMpegFile:
         //   - WaveWriter::write_data_raw asserts the data chunk itself
         //     is < 4 GiB, capping the dominant contributor.
-        //   - The metadata chunks (fmt, fact, mext, bext) total at
-        //     most a few KB.
+        //   - The metadata chunks (fmt, fact, mext, bext, cart) total at
+        //     most a few KB unless cart.tag_text is unusually large.
         //   - 256 kbps MP2 at the 4 GiB data-chunk ceiling would be
-        //     ~36 hours — well beyond any realistic broadcast item.
+        //     ~36 hours — well beyond any realistic broadcast cart.
         // So in practice form_length stays well under 4 GiB and ds64
         // is never needed.
         let mut w = WaveWriter::new_without_ds64_reservation(writer, format)?;
@@ -163,6 +172,11 @@ impl BroadcastMpegFile {
                 bext.coding_history = default_coding_history(&self.info);
             }
             w.write_broadcast_metadata(&bext)?;
+        }
+
+        // cart: written as-is
+        if let Some(cart) = self.cart {
+            w.write_cart(&cart)?;
         }
 
         // data: raw MPEG bytes — bypass the elm1-aligned audio frame
@@ -240,6 +254,9 @@ mod tests {
 
         // bext is None unless we attached one
         assert!(reader.broadcast_extension().unwrap().is_none());
+
+        // cart is None unless we attached one
+        assert!(reader.cart().unwrap().is_none());
     }
 
     #[test]
@@ -350,11 +367,17 @@ mod tests {
     #[test]
     fn full_metadata_roundtrip() {
         let bext = sample_bext();
+        let cart = Cart {
+            title: "End-to-end test".into(),
+            artist: "PRX".into(),
+            ..Cart::default()
+        };
 
         let mut cursor = Cursor::new(Vec::<u8>::new());
         BroadcastMpegFile::from_path("tests/media/test.mp2")
             .unwrap()
             .with_bext(bext.clone())
+            .with_cart(cart.clone())
             .write_to(&mut cursor)
             .unwrap();
 
@@ -366,6 +389,10 @@ mod tests {
 
         let parsed_bext = reader.broadcast_extension().unwrap().unwrap();
         assert_eq!(parsed_bext.description, bext.description);
+
+        let parsed_cart = reader.cart().unwrap().unwrap();
+        assert_eq!(parsed_cart.title, cart.title);
+        assert_eq!(parsed_cart.artist, cart.artist);
     }
 
     #[test]
