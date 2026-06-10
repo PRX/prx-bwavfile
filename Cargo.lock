@@ -148,7 +148,7 @@ checksum = "e462514acb482a039cf915999d6cca0474dfa9d711f040025cf394d54f0f92e4"
 
 [[package]]
 name = "prx-bwavfile"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "byteorder",
  "clap",
