@@ -22,6 +22,11 @@ Apps we test against:
 [github]: https://github.com/iluvcapra/bwavfile
 */
 
+//! <div class="warning">
+//! Some changes in this file were made with assistance from a generative AI
+//! model: Anthropic Claude Opus 4.7 (`claude-opus-4-7`), 2026-05-02.
+//! </div>
+
 extern crate byteorder;
 extern crate encoding;
 extern crate uuid;

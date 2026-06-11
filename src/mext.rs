@@ -1,3 +1,8 @@
+//! <div class="warning">
+//! Some changes in this file were made with assistance from a generative AI
+//! model: Anthropic Claude Opus 4.7 (`claude-opus-4-7`), 2026-05-02.
+//! </div>
+
 /// `mext` chunk record — MPEG audio extension for Broadcast Wave Files.
 ///
 /// Defined by [EBU Tech 3285 Supplement 1][s1] for files containing
