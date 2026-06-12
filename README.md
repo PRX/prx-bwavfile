@@ -12,7 +12,7 @@ support listed under "PRX additions" below. Where possible, fixes and general im
 are contributed back upstream; PRX-specific features (MP2 audio, `mext`, `cart`) live in
 this fork. Original commit history is preserved on the `main` branch.
 
-## PRX additions (in progress)
+## PRX additions
 
 These features are under development and not yet shipped:
 
